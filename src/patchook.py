@@ -62,7 +62,7 @@ class Patchook:
             patch_dict["thread_name"] = patch.title
 
         if self.available_tags is not None:
-            patch_dict["applied_tags"] = [self.available_tags[tag] for tag in patch.get_tags() if tag in self.available_tags]
+            patch_dict["applied_tags"] = [int(self.available_tags[tag]) for tag in patch.get_tags() if tag in self.available_tags]
 
         if self.application_owned:
             patch_dict["components"] = [

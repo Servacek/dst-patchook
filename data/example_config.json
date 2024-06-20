@@ -1,25 +1,25 @@
-
 {
-	"webhooks": [
-		{
-            "url": "YOUR WEBHOOK URL",
+    "webhooks": [
+        {
+            "enabled": true,
+
+            "url": "YOUR DISCORD WEBHOOK URL",
+            "forum": false,
+            "application_owned": false,
+            "available_tags": {
+                "hotfix": "YOUR TAG ID",
+                "release": "YOUR TAG ID",
+                "beta": "YOUR TAG ID"
+            },
+
             "ignore": {
                 "hotfix": false,
                 "major": false,
                 "release": false,
                 "beta": false
-            },
-            "custom_path_header": null
-		}
-	],
+            }
+        }
+    ],
 
-    "tags": {
-        "hotfix": 1020629013535920148,
-        "release": 1020628955226722374,
-        "beta": 1020629106863382598
-    },
-
-    "forum": false,
-	"debug_mode": true,
-	"video-only": false
+    "debug_mode": false
 }
