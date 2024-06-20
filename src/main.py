@@ -46,7 +46,16 @@ def main():
     print("Looking for new versions...")
     current_version = version_manager.get_saved_version()
     if current_version < 0:
-        return print("No saved version found! Please update the version.txt file.")
+        print("No saved version found! Attempting to fetch the newest one...")
+        newest_version = web_scraper.get_newest_version()
+        if newest_version:
+            print(f"Successfully fetched \"{newest_version}\" as the newest version. Saving to version.txt...")
+            version_manager.update_saved_version(newest_version)
+            print("Done!")
+        else:
+            print("Fetching failed! Please update the version.txt manually.")
+
+        return  # Nothing more we can do
 
     new_patches = web_scraper.get_new_patches(current_version)
 

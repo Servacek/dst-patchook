@@ -41,6 +41,23 @@ class WebScraper:
 
         return BeautifulSoup(self._make_request(patch_url).text, features=PARSER)
 
+    def get_newest_version(self) -> int:
+        """
+        Return the highest version number from the game updates page.
+        :return: An integer with the newest version.
+        """
+
+        page_response = self.get_updates_page()
+        soup = BeautifulSoup(page_response.text, features=PARSER)
+
+        versions = []
+        for data in soup.find_all('li', {'class': 'cCmsRecord_row'}):
+            version = int(
+                data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
+            versions.append(version)
+
+        return max(versions) if versions else -1
+
     def get_new_patches(self, target_version: int) -> list[Patch]:
         """
         Return a list of new patches with versions higher than the target version.
