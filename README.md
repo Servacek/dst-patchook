@@ -1,15 +1,18 @@
 # Patchook
 A Discord webhook implementation for posting updates from Klei forums.
+
 ![image](https://github.com/Servacek/Patchook/assets/105163129/fe9017d2-3ab9-4a7d-b9f2-a3743f28f150)
 
 ## Features
 
 ### 1. Automatic Tags
 In case of a forum webhook, it will automatically apply the tags configured for each update category to the thread upon creation.
+
 ![image](https://github.com/Servacek/Patchook/assets/105163129/91767b06-8aba-493d-b81d-cb56b82727a7)
 
 ### 2. Detecting Reward Links
 Reward links for free Klei points or Spools will be automatically detected and displayed in the link section of the post.
+
 ![image](https://github.com/Servacek/Patchook/assets/105163129/103ca93e-877f-4654-a995-1b615938aca3)
 
 ### 3. Thumbnails
