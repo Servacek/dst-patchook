@@ -1,0 +1,25 @@
+
+{
+	"webhooks": [
+		{
+            "url": "YOUR WEBHOOK URL",
+            "ignore": {
+                "hotfix": false,
+                "major": false,
+                "release": false,
+                "beta": false
+            },
+            "custom_path_header": null
+		}
+	],
+
+    "tags": {
+        "hotfix": 1020629013535920148,
+        "release": 1020628955226722374,
+        "beta": 1020629106863382598
+    },
+
+    "forum": false,
+	"debug_mode": true,
+	"video-only": false
+}
