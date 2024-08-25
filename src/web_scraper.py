@@ -96,7 +96,8 @@ class WebScraper:
 
         return new_patches
 
-    def _make_request(self, url: str) -> requests.Response|None:
+    # The response is optional, not using the optional annotation in order to support older versions.
+    def _make_request(self, url: str) -> requests.Response:
         """
         Make a request to the given URL and handle possible errors.
         :param url: A string with the URL.
