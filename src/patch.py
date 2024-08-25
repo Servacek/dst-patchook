@@ -40,7 +40,7 @@ MAX_FIELDS = 25
 MAX_TOTAL_CHARACTERS = 6000
 MAX_CONTENT_LEN = MAX_TOTAL_CHARACTERS - 250 # Reserve for title, author and footer
 
-REWARD_LINK_PATTERN = r'(https:\/\/accounts.klei.com\/link\/[^" \/\)]+)'
+REWARD_LINK_PATTERN = r'(http[s]?:\/\/accounts.klei.com\/link\/[^" \:\?\@\&\#\[\>\)\(\]\<\n\t\/]+)'
 
 GAME_NAME_NORMALIZED = "don't starve"
 
@@ -129,7 +129,7 @@ class Patch:
 
         obj = soup.find('section', {'class': SECTION_CLASS_NAME})
 
-        self.notes = PatchNotes(self.url, obj)
+        self.notes = PatchNotes(obj)
         self.json = json_loads(
             "".join(soup.find("script", {"type":"application/ld+json"}).contents)
         )
@@ -137,7 +137,7 @@ class Patch:
 
         self.release_date = self.json['datePublished']
 
-        self.rewardlinks = findall(REWARD_LINK_PATTERN, soup.text)
+        self.rewardlinks = set(findall(REWARD_LINK_PATTERN, soup.text))
 
         self.was_built = True
 

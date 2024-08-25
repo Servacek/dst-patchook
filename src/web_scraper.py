@@ -14,7 +14,7 @@ KLEI_DST_UPDATES = 'http://forums.kleientertainment.com/game-updates/dst/'
 
 VERSION_CLASS_NAME = "ipsType_sectionHead ipsType_break"
 MAX_ATTEMPTS = 3
-VIDEO_EMBED_ID_TEMPLATE = "((?<=(v|V)/)|(?<=be/)|(?<=(\?|\&)v=)|(?<=embed/))([\w-]+)"
+RETRY_AFTER = 60 # 1 minute
 
 PARSER = "html.parser"
 
@@ -96,7 +96,7 @@ class WebScraper:
 
         return new_patches
 
-    def _make_request(self, url: str) -> requests.Response:
+    def _make_request(self, url: str) -> requests.Response|None:
         """
         Make a request to the given URL and handle possible errors.
         :param url: A string with the URL.
@@ -106,11 +106,12 @@ class WebScraper:
         reconnect_attempts = 0
         while reconnect_attempts <= MAX_ATTEMPTS:
             try:
-                request = requests.get(url)
-                request.raise_for_status()
-                return request
+                response = requests.get(url)
+                print(f"[{response.status_code}]: {response.reason} <- GET {url}")
+                response.raise_for_status()
+                return response
             except (requests.ConnectionError, requests.exceptions.HTTPError):
-                print(f"[Error] Wasn't able to fetch the page '{url}'!")
-                sleep(300)
+                print(f"[Error] Wasn't able to fetch the page '{url}'! Retrying after {RETRY_AFTER} seconds...")
+                sleep(RETRY_AFTER)
                 print(f"[{reconnect_attempts}/{MAX_ATTEMPTS}] Retrying...")
                 reconnect_attempts += 1
