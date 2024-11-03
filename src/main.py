@@ -16,7 +16,7 @@ from web_scraper import WebScraper
 from config import config
 
 
-__version__ = "2.0"
+__version__ = "2.1"
 __author__  = "Fi7iP"
 
 MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15

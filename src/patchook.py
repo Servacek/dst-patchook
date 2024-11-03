@@ -85,9 +85,9 @@ class Patchook:
         Returns:
             Dictionary representing the patch to be posted with custom header.
         """
-        if self.custom_patch_header and patch_dict.get("content"):
+        if self.custom_patch_header:
             patch_dict["content"] = self.custom_patch_header + \
-                "\n" + patch_dict["content"]
+                ("\n" + patch_dict["content"] if patch_dict["content"] else "")
 
         return patch_dict
 
