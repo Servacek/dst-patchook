@@ -87,7 +87,7 @@ class Patchook:
         """
         if self.custom_patch_header:
             patch_dict["content"] = self.custom_patch_header + \
-                ("\n" + patch_dict["content"] if patch_dict["content"] else "")
+                ("\n" + patch_dict["content"] if "content" in patch_dict else "")
 
         return patch_dict
 
