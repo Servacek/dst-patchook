@@ -16,7 +16,7 @@ from web_scraper import WebScraper
 from config import config
 
 
-__version__ = "2.1"
+__version__ = "2.2"
 __author__  = "Fi7iP"
 
 MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15
@@ -24,7 +24,7 @@ MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15
 LIMIT_VERSION = 0
 
 # Cooldown for sending the patches
-POST_COOLDOWN = 5 if config.get("debug_mode", False) else 30
+POST_COOLDOWN = 5 if config.get("debug_mode", False) else 15
 
 #############################################
 
@@ -71,7 +71,7 @@ def main():
 
     # Sort depending on patch version
     patches_sorted: list[Patch] = sorted(new_patches[:MAX_VERSIONS_TO_ANNOUNCE], key=lambda patch: patch.version)
-    target_version: int = patches_sorted[-1].version
+    version_announced: int = None
     for patchook in patchooks:
         if not patchook.enabled:
             continue
@@ -91,9 +91,16 @@ def main():
             if patch.is_major() and patchook.ignore_major:
                 continue
 
-            response = patchook.post(patch)
-            if response is None or not response.ok:
-                return print("[Error] Failed to post the update on discord!")
+            # Continue even when some updates fail to be announced.
+            try:
+                response = patchook.post(patch)
+                if response is None or not response.ok:
+                    print("[Error] Failed to post the update on discord!")
+            except Exception as err:
+                print("[Error] Failed to post the update on discord!", err)
+            else:
+                # Announced on at least one server. To prevent duplicates.
+                version_announced = patch.version
 
             # Do not cooldown when this is the last patch
             if index < (len(patches_sorted) - 1):
@@ -103,11 +110,11 @@ def main():
             if config.get('debug_mode', False) and LIMIT_VERSION > 0 and patch.version == LIMIT_VERSION:
                 break
 
-    if not config.get('debug_mode', False):
-        print("Updating the saved version...")
-        version_manager.update_saved_version(target_version) # updates the version to the newest
-    else:
+    if config.get('debug_mode', False):
         print("[Warning]: Debug mode enabled!")
+    elif version_announced != None: # Only update to the version we have announced already.
+        print("Updating the saved version to version", version_announced)
+        version_manager.update_saved_version(version_announced) # updates the version to the newest
 
     print("Done!")
 
