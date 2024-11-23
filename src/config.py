@@ -16,3 +16,8 @@ try:
 except json.JSONDecodeError:
     print("[Error] Failed to load configuration file! Configuration file is empty or contains invalid JSON.")
     exit(-1)
+
+def save_config():
+    with open(CONFIG_FILE, 'w') as config_file:
+        config_file.write(json.dumps(config, indent=4))
+        print("[Info] Configuration file saved.")

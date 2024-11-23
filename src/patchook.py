@@ -1,6 +1,7 @@
 import requests
 
 from patch import Patch
+import web_scraper
 
 
 class Patchook:
@@ -8,6 +9,9 @@ class Patchook:
 
     def __init__(self, webhook_config: dict, *args, **kwargs) -> None:
         """Initialize Patchook object with webhook configuration."""
+
+        self.original_config = webhook_config
+        self.config = webhook_config.copy()
 
         self._configure_ignore_flags(webhook_config)
 
@@ -20,7 +24,29 @@ class Patchook:
         self.video_only = webhook_config.get("video_only", False)
         self.forum = webhook_config.get("forum", False)
         self.enabled = webhook_config.get("enabled", True)
-        self.application_owned = webhook_config.get("application_owned", False)
+
+        ## Auto-upading fields
+
+        self.info = web_scraper.get_webhook_info(self.url)
+
+        self.guild_id = self.info.get("guild_id", None)
+        if self.guild_id: self.config["guild_id"] = self.guild_id
+
+        self.name = self.info.get("name", None)
+        if self.name: self.config["name"] = self.name
+
+        self.application_owned = webhook_config.get("application_owned", None)
+        if self.application_owned is None and self.info: # This is a constant and never changes without the token.
+            self.application_owned = self.info.get("application_owned", False)
+
+        self.last_announced_version = webhook_config.get("last_announced_version", None)
+        if self.last_announced_version is None:
+            self.last_announced_version = web_scraper.get_newest_version()
+            if self.last_announced_version:
+                self.config["last_announced_version"] = self.last_announced_version
+            else:
+                print("Failed to fetch the newest version for Patchook", self.url, "\nPlease update \"last_announced_version\" field in the config JSON file manually.")
+
 
     def _configure_ignore_flags(self, webhook_config: dict) -> None:
         """Configure ignore flags based on webhook configuration."""

@@ -7,28 +7,30 @@ from time import sleep
 environ["APP_DIR"] = str(Path(__file__).parent.parent.absolute())
 environ["APP_DATA_DIR"] = str(Path(environ["APP_DIR"]).joinpath("data"))
 
-import version_manager
-
 from patchook import Patchook
 from patch import Patch
-from web_scraper import WebScraper
+import web_scraper
 
-from config import config
+from config import config, save_config
 
 
-__version__ = "2.2"
+__version__ = "2.5"
 __author__  = "Fi7iP"
 
 MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15
 
 LIMIT_VERSION = 0
 
+# The discord REST API rate limit is 16 requests/second.
+# So at most one request every 3 seconds.
 # Cooldown for sending the patches
-POST_COOLDOWN = 5 if config.get("debug_mode", False) else 15
+POST_COOLDOWN = 5
+
+VERSION_PATH = "versions.json"
+VERSION_FILE = Path(environ["APP_DATA_DIR"]).joinpath(VERSION_PATH).resolve()
+VERSION_FILE.touch(exist_ok=True)
 
 #############################################
-
-web_scraper = WebScraper()
 
 def get_patchooks() -> list[Patchook]:
     webhook_configs = config.get('webhooks', [])
@@ -39,41 +41,34 @@ def get_patchooks() -> list[Patchook]:
     return patchooks
 
 def main():
-    patchooks = get_patchooks()
+    webhook_configs = config.get('webhooks', [])
+    patchooks: list[Patchook] = []
+    for webhook_config in webhook_configs:
+        patchooks.append(Patchook(webhook_config))
     if len(patchooks) <= 0:
-        return print("No activate webhooks found.")
+        return print("[Warn] No activate webhooks found.")
 
-    print("Looking for new versions...")
-    current_version = version_manager.get_saved_version()
-    if current_version < 0:
-        print("No saved version found! Attempting to fetch the newest one...")
-        newest_version = web_scraper.get_newest_version()
-        if newest_version:
-            print(f"Successfully fetched \"{newest_version}\" as the newest version. Saving to version.txt...")
-            version_manager.update_saved_version(newest_version)
-            print("Done!")
-        else:
-            print("Fetching failed! Please update the version.txt manually.")
+    last_announced_versions = [patchook.last_announced_version for patchook in patchooks if patchook.last_announced_version is not None]
+    oldest_announced_version = min(last_announced_versions)
+    print("[Info] Looks like the oldest announced version we have is", oldest_announced_version)
 
-        return  # Nothing more we can do
-
-    new_patches = web_scraper.get_new_patches(current_version)
-
-    print("Current Version:", current_version)#, "Newest release version:", newest_version)
+    print("[Info] Looking for versions newer than that...")
+    new_patches = web_scraper.get_new_patches(oldest_announced_version)
     if len(new_patches) <= 0:
         return print("No newer versions were found.")
-
-    print(f"Found {len(new_patches)} new version(s)!")
+    print(f"[Info] Found {len(new_patches)} new version(s)!")
 
     if len(new_patches) > MAX_VERSIONS_TO_ANNOUNCE:
-        print("Can't announce that many versions, because of discord api limitations!")
-        print(f"Will announce just the newest {MAX_VERSIONS_TO_ANNOUNCE} versions from the list.")
+        print("[Warn] Can't announce that many versions, because of discord api limitations!")
+        print(f"[Warn] Will announce just the newest {MAX_VERSIONS_TO_ANNOUNCE} versions from the list.")
 
     # Sort depending on patch version
+    updated_webhook_configs = []
     patches_sorted: list[Patch] = sorted(new_patches[:MAX_VERSIONS_TO_ANNOUNCE], key=lambda patch: patch.version)
-    version_announced: int = None
     for patchook in patchooks:
         if not patchook.enabled:
+            print(f"[Info] Webhook {patchook.name or patchook.url} from guild {patchook.guild_id or 'UNKNOWN'} is disabled. Skipping...")
+            updated_webhook_configs.append(patchook.config)
             continue
 
         for index, patch in enumerate(patches_sorted):
@@ -95,13 +90,14 @@ def main():
             try:
                 response = patchook.post(patch)
                 if response is None or not response.ok:
-                    print("[Error] Failed to post the update on discord!")
+                    raise Exception("[Error] Posting request returned an error status code!")
             except Exception as err:
                 print("[Error] Failed to post the update on discord!", err)
-            else:
-                # Announced on at least one server. To prevent duplicates.
-                version_announced = patch.version
+            else: # In case they were no errors
+                patchook.last_announced_version = patch.version
+                patchook.config["last_announced_version"] = patch.version
 
+            # Rate limiting is handled per IP not per endpoint or webhook.
             # Do not cooldown when this is the last patch
             if index < (len(patches_sorted) - 1):
                 print(f"Cooling down!")
@@ -110,13 +106,19 @@ def main():
             if config.get('debug_mode', False) and LIMIT_VERSION > 0 and patch.version == LIMIT_VERSION:
                 break
 
-    if config.get('debug_mode', False):
-        print("[Warning]: Debug mode enabled!")
-    elif version_announced != None: # Only update to the version we have announced already.
-        print("Updating the saved version to version", version_announced)
-        version_manager.update_saved_version(version_announced) # updates the version to the newest
 
-    print("Done!")
+        updated_webhook_configs.append(patchook.config)
+
+    if config.get('debug_mode', False):
+        # In debug mode we do not override the configurations so we can test one update
+        # multiple times without manually modifying the files back each time.
+        print("[Warning]: Debug mode enabled!")
+    elif updated_webhook_configs != webhook_configs: # Only update to the version we have announced already.
+        print("[Info] Webhook configurations have changed during announcing process! Saving the updates...")
+        config["webhooks"] = updated_webhook_configs
+        save_config()
+
+    print("[Info] Done!")
 
 
 

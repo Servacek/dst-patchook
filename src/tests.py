@@ -4,7 +4,7 @@ from os import environ
 environ["APP_DIR"] = str(Path(__file__).parent.parent.absolute())
 environ["APP_DATA_DIR"] = str(Path(environ["APP_DIR"]).joinpath("data"))
 
-from web_scraper import WebScraper
+import web_scraper
 
 from patch import Patch
 from patchook import Patchook
@@ -14,7 +14,6 @@ from config import config
 
 if __name__ == '__main__':
     patchook = Patchook(config['webhooks'][0])
-    web_scraper = WebScraper()
 
     # ######################################################################
 
