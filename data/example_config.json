@@ -12,6 +12,13 @@
                 "beta": "YOUR TAG ID"
             },
 
+            "custom_patch_header": {
+                "release? beta major !hotfix": "THIS IS AN BETA RELEASE",
+                "release !beta major !hotfix": "THIS IS A NON BETA RELEASE",
+                "hotfix release? beta !major": "THIS IS A BETA HOTFIX",
+                "hotfix release? beta! !major": "THIS IS A HOTFIX"
+            },
+
             "ignore": {
                 "hotfix": false,
                 "major": false,
@@ -21,5 +28,7 @@
         }
     ],
 
+    "max_announcements_per_webhook": 50,
+    "post_cooldown": 5,
     "debug_mode": false
 }

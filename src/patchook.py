@@ -1,6 +1,6 @@
 import requests
 
-from patch import Patch
+from patch import Patch, PatchTag
 import web_scraper
 
 
@@ -29,10 +29,10 @@ class Patchook:
 
         self.info = web_scraper.get_webhook_info(self.url)
 
-        self.guild_id = self.info.get("guild_id", None)
+        self.guild_id = self.info.get("guild_id", None) if self.info else None
         if self.guild_id: self.config["guild_id"] = self.guild_id
 
-        self.name = self.info.get("name", None)
+        self.name = self.info.get("name", None) if self.info else None
         if self.name: self.config["name"] = self.name
 
         self.application_owned = webhook_config.get("application_owned", None)
@@ -83,7 +83,7 @@ class Patchook:
         Returns:
             Dictionary representing the patch to be posted.
         """
-        patch_dict = patch.to_dict_for()
+        patch_dict = patch.to_dict()
         if self.forum:
             patch_dict["thread_name"] = patch.title
 
@@ -100,9 +100,9 @@ class Patchook:
         else:
             patch_dict["content"] = patch.get_links_header()
 
-        return self._add_custom_header(patch_dict)
+        return self._add_custom_header(patch, patch_dict)
 
-    def _add_custom_header(self, patch_dict: dict) -> dict:
+    def _add_custom_header(self, patch: Patch, patch_dict: dict) -> dict:
         """Add custom header to patch dictionary if available.
 
         Args:
@@ -111,9 +111,33 @@ class Patchook:
         Returns:
             Dictionary representing the patch to be posted with custom header.
         """
-        if self.custom_patch_header:
-            patch_dict["content"] = self.custom_patch_header + \
-                ("\n" + patch_dict["content"] if "content" in patch_dict else "")
+        if not self.custom_patch_header:
+            return patch_dict # No changes
+
+        patch_tags = patch.get_tags()
+        for tags_string, header in self.custom_patch_header.items():
+            tags_required, tags_prohibited, tags_optional = [], [], []
+            for tag in tags_string.split():
+                tag = tag.strip()
+                tag_name = tag.strip("!").strip("?")
+                if not tag_name in PatchTag.ALL:
+                    print("[Warn] Patch tag", tag_name, "is not valid!")
+                    continue
+
+                if tag.startswith("!") or tag.endswith("!"):
+                    tags_prohibited.append(tag_name)
+                elif tag.startswith("?") or tag.endswith("?"):
+                    tags_optional.append(tag_name)
+                else:
+                    tags_required.append(tag_name)
+
+            if (
+                all(tag in patch_tags for tag in tags_required) and # All required tags!
+                not any(tag in patch_tags for tag in tags_prohibited) and # No prohibited tags!
+                all(tag in tags_required or tag in tags_optional for tag in patch_tags) # No redundant tags!
+            ):
+                patch_dict["content"] = header + \
+                    ("\n" + patch_dict["content"] if "content" in patch_dict else "")
 
         return patch_dict
 

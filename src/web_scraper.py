@@ -9,7 +9,7 @@ from config import config
 
 
 # URLs
-KLEI_DST_UPDATES = 'http://forums.kleientertainment.com/game-updates/dst/'
+KLEI_DST_UPDATES = 'http://forums.kleientertainment.com/game-updates/dst/page/{}'
 # This doesn't contain beta versions!
 #DST_BUILDS = 's3.amazonaws.com/dstbuilds/builds.json'
 
@@ -20,13 +20,16 @@ RETRY_AFTER = 60 # 1 minute
 PARSER = "html.parser"
 
 
-def get_updates_page() -> requests.Response:
+def get_updates_page(page_number: int=1) -> requests.Response:
     """
     Return the game updates page for DST.
+
+    :param page_number: The page number to retrieve. Starting from 1.
+
     :return: requests.Response object.
     """
 
-    return _make_request(KLEI_DST_UPDATES)
+    return _make_request(KLEI_DST_UPDATES.format(page_number))
 
 
 webhook_info_cache = {}
@@ -85,24 +88,25 @@ def get_newest_version() -> int:
         print("Using cached newest version instead...")
         return cached_newest_version
 
-    page_response = get_updates_page()
+    newest_version = None
+    page_response = get_updates_page() # Newest version should be always on the first page.
     soup = BeautifulSoup(page_response.text, features=PARSER)
-
-    versions = []
     for data in soup.find_all('li', {'class': 'cCmsRecord_row'}):
         version = int(
             data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
-        versions.append(version)
+        if newest_version is None or newest_version < version:
+            newest_version = version
 
-    if versions:
-        cached_newest_version = max(versions)
+    if newest_version:
+        cached_newest_version = newest_version
         return cached_newest_version
     else:
         print("Failed to catch the newest version! Will try the next time...")
         return None
 
 
-def get_new_patches(target_version: int) -> list[Patch]:
+# This allows for fetching a range of versions.
+def get_new_patches(min_version: int, max_version: int=None) -> list[Patch]:
     """
     Return a list of new patches with versions higher than the target version.
     :param target_version: An integer with the target version.
@@ -111,34 +115,55 @@ def get_new_patches(target_version: int) -> list[Patch]:
 
     new_patches = []
 
-    updates_page = get_updates_page()
-    soup = BeautifulSoup(updates_page.text, features="html.parser")
-    for data in soup.find_all('li', {'class': 'cCmsRecord_row'}):
-        hotfix = "hotfix" in data.find('span').get('title').lower()
+    page_number = 1
+    while True:
+        updates_page = get_updates_page(page_number)
+        soup = BeautifulSoup(updates_page.text, features="html.parser")
+        last_version_fetched = None
+        for data in soup.find_all('li', {'class': 'cCmsRecord_row'}):
+            hotfix = "hotfix" in data.find('span').get('title').lower()
 
-        version = int(data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
-        if version > target_version:
-            url = data.find('a').get("href")
-            tag = data.find('span', {'class': 'ipsBadge ipsBadge_negative'})
-            beta = tag and "test" in tag.text.lower() or False
+            version = int(data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
+            last_version_fetched = version
+            if version > min_version and (max_version is None or version < max_version):
+                url = data.find('a').get("href")
+                tag = data.find('span', {'class': 'ipsBadge ipsBadge_negative'})
+                beta = tag and "test" in tag.text.lower() or False
 
-            soup = get_patch_soup(url)
+                soup = get_patch_soup(url)
 
-            new_patches.append(Patch(
-                hotfix=hotfix,
-                beta=beta,
-                version=version,
-                url=url,
-                soup=soup,
-            ))
+                new_patches.append(Patch(
+                    hotfix=hotfix,
+                    beta=beta,
+                    version=version,
+                    url=url,
+                    soup=soup,
+                ))
 
-            if config["debug_mode"]:
-                break # Do not wait for all of the updates.
+                if len(new_patches) >= config.get("max_announcements_per_webhook", 50):
+                    print("[Warn] They may be even more new versions but we have already reached the limit!")
+                    break
 
-        elif hotfix:
+                # if config["debug_mode"]:
+                #     print("STOPPING HERE BECAUSE OF DEBUG MODE")
+                #     break # Do not wait for all of the updates.
+
+            # elif hotfix:
+            #     break # Hotfixes are not pinned, but let's be sure.
+            #           # It's not that much of a computational effort once we have it fetched and processed.
+
+        # Last version on this patch is older than the target version.
+        # We assume that the page is not full of pinned patches (usually only one is pinned).
+        if last_version_fetched < min_version:
             break
 
+        page_number += 1
+
     return new_patches
+
+
+def get_specific_patch(target_version):
+    return get_new_patches(target_version - 1, target_version + 1)
 
 #### Private Helper Functions ####
 

@@ -57,6 +57,8 @@ class PatchTag:
     RELEASE = "release"
     BETA    = "beta"
 
+    ALL = [HOTFIX, MAJOR, RELEASE, BETA]
+
 
 TITLE_TAGS = {
     PatchTag.BETA:     "(Beta)",
@@ -315,7 +317,7 @@ class Patch:
             },
         }
 
-    def to_dict_for(self) -> dict:
+    def to_dict(self) -> dict:
         result = {}
 
         embed = self.to_embed()

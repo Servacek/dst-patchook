@@ -14,26 +14,22 @@ import web_scraper
 from config import config, save_config
 
 
-__version__ = "2.5.3"
+__version__ = "2.6"
 __author__  = "Fi7iP"
 
-MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15
-
-LIMIT_VERSION = 0
 
 # The discord REST API rate limit is 16 requests/second.
 # So at most one request every 3 seconds.
 # Cooldown for sending the patches
-POST_COOLDOWN = 5
-
-VERSION_PATH = "versions.json"
-VERSION_FILE = Path(environ["APP_DATA_DIR"]).joinpath(VERSION_PATH).resolve()
-VERSION_FILE.touch(exist_ok=True)
+POST_COOLDOWN = config.get("post_cooldown", 5)
+MAX_VERSIONS_TO_ANNOUNCE = config.get("max_announcements_per_webhook", 50)
+LIMIT_VERSION = 0 # Version where we should break at.
 
 #############################################
 
 def announce_new_versions(patchooks):
-    last_announced_versions = [patchook.last_announced_version for patchook in patchooks if patchook.last_announced_version is not None]
+    # Skip disabled webhooks here since they are not going to post the updates anyway.
+    last_announced_versions = [patchook.last_announced_version for patchook in patchooks if patchook.last_announced_version is not None and patchook.enabled is True]
     oldest_announced_version = min(last_announced_versions)
     print("[Info] Looks like the oldest announced version we have is", oldest_announced_version)
 
@@ -58,7 +54,7 @@ def announce_new_versions(patchooks):
             continue # We asked the user to update the config file manually and supply the newest version.
 
         for index, patch in enumerate(patches_sorted):
-            if patch.version <= patchook.last_announced_version:
+            if patch.version <= patchook.last_announced_version and not config.get('debug_mode', False):
                 continue # Only publish version that were not published before by this webhook.
 
             if patch.is_hotfix() and patchook.ignore_hotfix and patchook.ignore_beta:
