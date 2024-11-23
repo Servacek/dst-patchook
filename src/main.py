@@ -14,7 +14,7 @@ import web_scraper
 from config import config, save_config
 
 
-__version__ = "2.5.1"
+__version__ = "2.5.2"
 __author__  = "Fi7iP"
 
 MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15
@@ -32,22 +32,7 @@ VERSION_FILE.touch(exist_ok=True)
 
 #############################################
 
-def get_patchooks() -> list[Patchook]:
-    webhook_configs = config.get('webhooks', [])
-    patchooks: list[Patchook] = []
-    for webhook_config in webhook_configs:
-        patchooks.append(Patchook(webhook_config))
-
-    return patchooks
-
-def main():
-    webhook_configs = config.get('webhooks', [])
-    patchooks: list[Patchook] = []
-    for webhook_config in webhook_configs:
-        patchooks.append(Patchook(webhook_config))
-    if len(patchooks) <= 0:
-        return print("[Warn] No activate webhooks found.")
-
+def announce_new_versions(patchooks):
     last_announced_versions = [patchook.last_announced_version for patchook in patchooks if patchook.last_announced_version is not None]
     oldest_announced_version = min(last_announced_versions)
     print("[Info] Looks like the oldest announced version we have is", oldest_announced_version)
@@ -63,12 +48,10 @@ def main():
         print(f"[Warn] Will announce just the newest {MAX_VERSIONS_TO_ANNOUNCE} versions from the list.")
 
     # Sort depending on patch version
-    updated_webhook_configs = []
     patches_sorted: list[Patch] = sorted(new_patches[:MAX_VERSIONS_TO_ANNOUNCE], key=lambda patch: patch.version)
     for patchook in patchooks:
         if not patchook.enabled:
             print(f"[Info] Webhook {patchook.name or patchook.url} from guild {patchook.guild_id or 'UNKNOWN'} is disabled. Skipping...")
-            updated_webhook_configs.append(patchook.config)
             continue
 
         for index, patch in enumerate(patches_sorted):
@@ -107,16 +90,27 @@ def main():
                 break
 
 
-        updated_webhook_configs.append(patchook.config)
+def main():
+    webhook_configs = config.get('webhooks', [])
+    patchooks: list[Patchook] = []
+    for webhook_config in webhook_configs:
+        patchooks.append(Patchook(webhook_config))
+
+    if len(patchooks) <= 0: # There is nothing for us to do.
+        return print("[Warn] No webhooks found. Add some in your config.json file!\nCheck the example_config.json for reference.")
+
+    announce_new_versions(patchooks)
 
     if config.get('debug_mode', False):
         # In debug mode we do not override the configurations so we can test one update
         # multiple times without manually modifying the files back each time.
         print("[Warning]: Debug mode enabled!")
-    elif updated_webhook_configs != webhook_configs: # Only update to the version we have announced already.
-        print("[Info] Webhook configurations have changed during announcing process! Saving the updates...")
-        config["webhooks"] = updated_webhook_configs
-        save_config()
+    else:
+        updated_webhook_configs = [patchook.config for patchook in patchooks]
+        if updated_webhook_configs != webhook_configs:
+            print("[Info] Webhook configurations have changed during announcing process! Saving the updates...")
+            config["webhooks"] = updated_webhook_configs
+            save_config()
 
     print("[Info] Done!")
 
