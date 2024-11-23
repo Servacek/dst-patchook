@@ -14,7 +14,7 @@ import web_scraper
 from config import config, save_config
 
 
-__version__ = "2.5.2"
+__version__ = "2.5.3"
 __author__  = "Fi7iP"
 
 MAX_VERSIONS_TO_ANNOUNCE = 50 if config.get("debug_mode", False) else 15
@@ -54,7 +54,13 @@ def announce_new_versions(patchooks):
             print(f"[Info] Webhook {patchook.name or patchook.url} from guild {patchook.guild_id or 'UNKNOWN'} is disabled. Skipping...")
             continue
 
+        if patchook.last_announced_version is None:
+            continue # We asked the user to update the config file manually and supply the newest version.
+
         for index, patch in enumerate(patches_sorted):
+            if patch.version <= patchook.last_announced_version:
+                continue # Only publish version that were not published before by this webhook.
+
             if patch.is_hotfix() and patchook.ignore_hotfix and patchook.ignore_beta:
                 continue
 
