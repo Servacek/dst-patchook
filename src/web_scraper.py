@@ -44,6 +44,8 @@ def get_webhook_info(webhook_url: str, cache: bool=True) -> dict:
              JSON decoding fails.
     """
 
+    global webhook_info_cache
+
     if webhook_url in webhook_info_cache and cache is True:
         return webhook_info_cache[webhook_url]
 
@@ -76,6 +78,8 @@ def get_newest_version() -> int:
     Return the highest version number from the game updates page.
     :return: An integer with the newest version.
     """
+
+    global cached_newest_version
 
     if cached_newest_version is not None:
         print("Using cached newest version instead...")
