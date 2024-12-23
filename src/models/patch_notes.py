@@ -160,10 +160,10 @@ class PatchNotes:
                         ("> " + line if line.strip() and not line.strip().startswith("> ") else line) for line in p.text.splitlines()
                     ])
 
-        # TODO: Debug
+        # Handling embeds
         for embed in obj.find_all('iframe', {'class': EMBED_CLASS_NAME}):
             embed_link = embed.get("src")
-            if not embed.string or not embed_link:
+            if not embed_link: # How can an embed exist without a link?
                 continue
 
             embed_soup = BeautifulSoup(requests.get(

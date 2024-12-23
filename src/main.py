@@ -14,7 +14,7 @@ import web_scraper
 from config import config, save_config
 
 
-__version__ = "2.6"
+__version__ = "2.7"
 __author__  = "Fi7iP"
 
 
