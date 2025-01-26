@@ -15,6 +15,18 @@ from config import config
 if __name__ == '__main__':
     patchook = Patchook(config['webhooks'][0])
 
+    ######################################################################
+
+    print("Test with a gif")
+    url = "https://forums.kleientertainment.com/game-updates/dst/651101-r2457/#change-list"
+    patchook.post(Patch(
+        hotfix=False,
+        beta=False,
+        version=651101,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
+
     # ######################################################################
 
     # print("Lenght and identation test:")
@@ -125,15 +137,15 @@ if __name__ == '__main__':
 
     # ######################################################################
 
-    # print("Emoji and multiple sections test:")
-    # url = "https://forums.kleientertainment.com/game-updates/dst/174200-r39/"
-    # patchook.post(Patch(
-    #     hotfix=True,
-    #     beta=True,
-    #     version = 174200,
-    #     url=url,
-    #     soup=web_scraper.get_patch_soup(url),
-    # ))
+    print("Emoji and multiple sections test:")
+    url = "https://forums.kleientertainment.com/game-updates/dst/174200-r39/"
+    patchook.post(Patch(
+        hotfix=True,
+        beta=True,
+        version = 174200,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
 
     # ######################################################################
 
@@ -184,12 +196,12 @@ if __name__ == '__main__':
 
     # ######################################################################
 
-    print("Multiple rewardlink fetch test")
-    url = "https://forums.kleientertainment.com/game-updates/dst/605310-r2186/"
-    patchook.post(Patch(
-        hotfix=False,
-        beta=False,
-        version=605310,
-        url=url,
-        soup=web_scraper.get_patch_soup(url),
-    ))
+    # print("Multiple rewardlink fetch test")
+    # url = "https://forums.kleientertainment.com/game-updates/dst/605310-r2186/"
+    # patchook.post(Patch(
+    #     hotfix=False,
+    #     beta=False,
+    #     version=605310,
+    #     url=url,
+    #     soup=web_scraper.get_patch_soup(url),
+    # ))

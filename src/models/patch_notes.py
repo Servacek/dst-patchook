@@ -172,13 +172,18 @@ class PatchNotes:
                 'a', {'class': 'ipsRichEmbed_openItem'}).get("href")
             embed.string = f" {hyperlink}"
 
+        # Replace emojis with their text representations.
         for emoji in obj.find_all("img"):
-            title = emoji.get("title")
-            if title is not None:
-                emoji.replace_with(title)
+            text_emoji = emoji.get("title", emoji.get("alt"))
+            is_emoticon = emoji.get("data-emoticon", None)
+            if isinstance(text_emoji, str) and text_emoji.strip() and is_emoticon:
+                emoji.replace_with(text_emoji)
 
         for hyperlink in obj.find_all('a'):
             url = hyperlink.get('href')
+
+            if hyperlink.find("img"):
+                continue # Skip hyperlinks containing images.
 
             if hyperlink.string is None:
                 if url and url.startswith("http"):
@@ -274,6 +279,16 @@ class PatchNotes:
                         last_text_index += 1
 
                     result[last_text_index] = "**" + last_line.rstrip() + "**\n"
+
+            # Check if two consecutive lines are bold and make the first one a header
+            if last_line and stripped.startswith("**") and last_line.startswith("**"):
+                result[last_text_index] = "### " + last_line.strip().strip("**").strip() + "\n"
+                last_line = result[last_text_index]
+
+                i = last_text_index - 1
+                while result and i > 0 and result[i].strip() == "":
+                    result.pop(i)
+                    i -= 1
 
             # For description headers
             if not stripped.startswith("**") and identation_level == 0 and last_line and last_line.lstrip().startswith("*"):

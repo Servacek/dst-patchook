@@ -21,7 +21,10 @@ YT_VIDEO_TEMPLATE = "https://www.youtube.com/watch?v={}"
 YT_API_TEMPLATE = "https://noembed.com/embed?url={}"
 KLEI_YT_CHANNEL_URL = "https://www.youtube.com/@kleient"
 YT_VIDEO_THUMBNAIL_TEMPLATE = "https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
-FORUM_DISCUSSION_URL_PATTERN = r'https:\/\/forums.kleientertainment.com\/forums\/topic\/[^" \/]+'
+FORUM_DISCUSSION_URL_PATTERN = compile(r'https:\/\/forums.kleientertainment.com\/forums\/topic\/[^" \/]+')
+DST_KLEI_BUG_TRACKER_URL = "https://forums.kleientertainment.com/klei-bug-tracker/dont-starve-together/"
+FULL_UPDATE_URL_PATTERN  = '(https:\/\/forums.kleientertainment.com\/game-updates\/dst\/{}-r\d+\/?)'
+DST_GENERAL_DISCUSSION_URL = "https://forums.kleientertainment.com/forums/forum/66-dont-starve-together-general-discussion/"
 
 # youtube_regex = (
 #     r'(https?://)?(www\.)?'
@@ -34,11 +37,12 @@ HYPERLINK = "[{text}]({url})"
 COLOR_ORANGE = 15105570     # For releases
 COLOR_BLUE  = 3447003       # For betas
 
+# PREFIX CONSTANTS RETRIEVED FROM THE DISCORD API WITH "DISCORD_"
 MAX_DESCRIPTION_LENGHT = 4050
-MAX_FIELD_VALUE_LEN = 1024
-MAX_FIELDS = 25
-MAX_TOTAL_CHARACTERS = 6000
-MAX_CONTENT_LEN = MAX_TOTAL_CHARACTERS - 250 # Reserve for title, author and footer
+DISCORD_MAX_FIELD_VALUE_LEN = 1024
+DISCORD_MAX_FIELDS = 25
+DISCORD_MAX_TOTAL_CHARACTERS = 6000
+MAX_CONTENT_LEN = DISCORD_MAX_TOTAL_CHARACTERS - 250 # Reserve for title, author and footer
 
 REWARD_LINK_PATTERN = r'(http[s]?:\/\/accounts.klei.com\/link\/[^" \:\?\@\&\#\[\>\)\(\]\<\n\t\/]+)'
 
@@ -83,6 +87,8 @@ class Patch:
     json: dict
     author: Author
     notes: PatchNotes
+    discussion_url: str
+    full_update_url: str
     spoilers_removed: bool = False
     was_built: bool = False
 
@@ -106,14 +112,22 @@ class Patch:
             'class': 'ipsContained ipsSpacer_top'
         })
 
-        self.forum_url = self._get_forum_page(article)
-        if not self.has_forum() and self.is_major():
-            print("Couldn't fetch forum url for major version", self.version)
-
+        # This is a bit more specific since the URL could match anything.
         self.discussion_url = None
-        matches = article.findAll('a', href=compile(FORUM_DISCUSSION_URL_PATTERN))
+        matches = article.find_all('a', href=FORUM_DISCUSSION_URL_PATTERN)
         if matches:
             self.discussion_url = matches[-1].get("href")
+        if not self.discussion_url:
+            self.discussion_url = DST_GENERAL_DISCUSSION_URL
+
+        # TODO: Maybe add the update notes added in this URL to a separate second embed?
+        # More generic since we are searching for a more specific path with the unique version.
+        self.full_update_url = None
+        match = search(compile(FULL_UPDATE_URL_PATTERN.format(version)), str(soup))
+        if match:
+            self.full_update_url = match.group()
+        if self.full_update_url is None:
+            self.full_update_url = self.discussion_url
 
         self.video_url, self.thumbnail_url = self._get_trailer()
         if self.thumbnail_url is None:
@@ -139,7 +153,7 @@ class Patch:
 
         self.release_date = self.json['datePublished']
 
-        self.rewardlinks = set(findall(REWARD_LINK_PATTERN, soup.text))
+        self.rewardlinks = set(findall(REWARD_LINK_PATTERN, str(soup)))
 
         self.was_built = True
 
@@ -165,19 +179,19 @@ class Patch:
 
     def _get_thumbnail(self, article) -> str:
         thumbnail = article.find('img')
-        thumbnail_url = thumbnail and thumbnail.get("src") or None
+        # Get only first OR last image?
+        # if thumbnail is not None and thumbnail.parent:
+        #     for sibling in thumbnail.parent.previous_siblings:
+        #         if sibling.name == 'p' and sibling.text:
+        #             break
+        #     else:
+        #         thumbnail = None
 
-        if not thumbnail_url:
+        thumbnail_url = thumbnail and thumbnail.get("src") or None
+        if not thumbnail_url or not thumbnail_url.lower().endswith(('.png', '.gif', '.jpg', '.jpeg', '.webp')):
             return
 
         return urlparse(thumbnail_url, scheme='https').geturl()
-
-    def _get_forum_page(self, article) -> str:
-        article_urls = article.find_all('a')
-        if article_urls and len(article_urls) < 2:
-            return ""
-
-        return article_urls[-2].get('href') or ""
 
     def _get_title_tag(self) -> str:
         if self.is_beta():
@@ -194,6 +208,8 @@ class Patch:
         hyperlinks = [
             {"url": self.video_url, "text": "Watch Trailer", "icon": Icons.YOUTUBE} if self.has_trailer() else None,
             {"url": self.discussion_url, "text": "Join Discussion", "icon": Icons.FORUM} if self.discussion_url else None,
+            {"url": self.full_update_url, "text": "View Full Update", "icon": Icons.CHANGELOG} if self.full_update_url else None,
+            #{"url": DST_KLEI_BUG_TRACKER_URL, "text": "Klei Bug Tracker", "icon": Icons.BUG_TRACKER},
         ]
         for rewardlink in self.rewardlinks:
             hyperlinks.append({"url": rewardlink, "text": "Klei Points/Spools", "icon": Icons.POINTS})
@@ -217,9 +233,6 @@ class Patch:
     def has_trailer(self) -> bool:
         return isinstance(self.video_url, str) and len(self.video_url) > 0
 
-    def has_forum(self) -> bool:
-        return isinstance(self.forum_url, str) and len(self.forum_url) > 0
-
     def has_thumbnail(self) -> bool:
         return isinstance(self.thumbnail_url, str) and len(self.thumbnail_url) > 0
 
@@ -233,6 +246,12 @@ class Patch:
         return [tag for tag in tags if tag is not None]
 
     #################################
+
+    def get_desc_footer(self):
+        return (
+            "-# You can join in the [Discussion Topic](<{}>) here.\n"
+            "-# If you run into a bug, please visit the [Klei Bug Tracker](<{}>)."
+        ).format(self.discussion_url, DST_KLEI_BUG_TRACKER_URL)
 
     def get_links_header(self) -> str:
         header = ""
@@ -264,7 +283,7 @@ class Patch:
 
         return buttons
 
-    def to_embed(self) -> dict:
+    def to_embed(self, config={}) -> dict:
         if not self.was_built:
             return None
 
@@ -272,9 +291,12 @@ class Patch:
         fields = []
         field_index = -1
         total_len = 0
+        has_footer = config.get("footer") is True
+        # Keep one field for the footer!
+        max_fields = DISCORD_MAX_FIELDS - 1 if has_footer else DISCORD_MAX_FIELDS
 
         for note in self.notes.notes:
-            if (total_len + len(note)) >= MAX_CONTENT_LEN:
+            if (total_len + len(note)) >= min(config.get("max_patch_length", MAX_CONTENT_LEN), MAX_CONTENT_LEN):
                 if fields:
                     fields[field_index]["value"] += "..."
                 else:
@@ -288,7 +310,7 @@ class Patch:
                 continue
 
             # We have found a header. Try to add it to a separate field.
-            if note.strip("\n").startswith("**") and len(fields) < MAX_FIELDS:
+            if note.strip("\n").startswith("**") and len(fields) < max_fields:
                 note = note.strip()[2:-2]
                 fields.append({"name": note, "value": ""})
                 field_index += 1
@@ -296,13 +318,19 @@ class Patch:
                 continue
 
             # Add a field with a an empty title to continue filling the overflown description.
-            if not fields or len(fields[field_index]["value"]) + len(note) >= MAX_FIELD_VALUE_LEN:
+            if not fields or len(fields[field_index]["value"]) + len(note) >= DISCORD_MAX_FIELD_VALUE_LEN:
                 fields.append({"name": "", "value": ""})
                 field_index += 1
 
             # The description is full, start filling out the fields.
             fields[field_index]["value"] += note
             total_len += len(note)
+
+        if has_footer and len(fields) < DISCORD_MAX_FIELDS:
+            fields.append({
+                "name": "",
+                "value": self.get_desc_footer()
+            })
 
         return {
             "title": self.title,
@@ -317,10 +345,10 @@ class Patch:
             },
         }
 
-    def to_dict(self) -> dict:
+    def to_dict(self, config={}) -> dict:
         result = {}
 
-        embed = self.to_embed()
+        embed = self.to_embed(config)
         if embed is not None:
             if self.has_thumbnail():
                 # Set it as image instead of thumbnail so its bigger.

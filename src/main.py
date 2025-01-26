@@ -14,7 +14,7 @@ import web_scraper
 from config import config, save_config
 
 
-__version__ = "2.7"
+__version__ = "2.8"
 __author__  = "Fi7iP"
 
 
@@ -33,6 +33,7 @@ def announce_new_versions(patchooks):
     oldest_announced_version = min(last_announced_versions)
     print("[Info] Looks like the oldest announced version we have is", oldest_announced_version)
 
+    # We take all versions since some may be useful for one webhook and some for the others.
     print("[Info] Looking for versions newer than that...")
     new_patches = web_scraper.get_new_patches(oldest_announced_version)
     if len(new_patches) <= 0:

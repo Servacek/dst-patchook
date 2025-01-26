@@ -10,6 +10,7 @@ from config import config
 
 # URLs
 KLEI_DST_UPDATES = 'http://forums.kleientertainment.com/game-updates/dst/page/{}'
+DISCORD_API_BASE = "https://discord.com/api/v10"
 # This doesn't contain beta versions!
 #DST_BUILDS = 's3.amazonaws.com/dstbuilds/builds.json'
 
@@ -58,11 +59,45 @@ def get_webhook_info(webhook_url: str, cache: bool=True) -> dict:
             webhook_info = json.loads(response.text)
         except json.JSONDecodeError:
             print("Failed to decode the webhook info JSON!")
-            return None
+            return {}
         else:
             webhook_info_cache[webhook_url] = webhook_info
             return webhook_info
 
+
+channel_info_cache = {}
+def get_channel_info(channel_id: int) -> dict:
+    """
+    Retrieve and cache channel information from a given channel ID.
+
+    This function fetches the channel information from the specified channel ID.
+    If caching is enabled and the channel ID has been previously requested, it returns
+    the cached data instead. The channel data is expected to be in JSON format.
+
+    :param channel_id: The channel ID to retrieve information from.
+    :return: A dictionary containing the channel information, or None if the
+             JSON decoding fails.
+    """
+    global channel_info_cache
+
+    bot_token = config.get("bot_token")
+    if not bot_token:
+        return {}
+
+    channel_url = f"{DISCORD_API_BASE}/channels/{channel_id}"
+    response = requests.get(channel_url, headers={
+        "Authorization": f"Bot {bot_token}"  # Replace with your bot token
+    })
+
+    if response:
+        try:
+            channel_info = json.loads(response.text)
+        except json.JSONDecodeError:
+            print("Failed to decode the webhook info JSON!")
+            return {}
+        else:
+            channel_info_cache[channel_url] = channel_info
+            return channel_info
 
 
 def get_patch_soup(patch_url: str) -> BeautifulSoup:
@@ -144,7 +179,7 @@ def get_new_patches(min_version: int, max_version: int=None) -> list[Patch]:
                     print("[Warn] They may be even more new versions but we have already reached the limit!")
                     break
 
-                # if config["debug_mode"]:
+                # if config.get("debug_mode"):
                 #     print("STOPPING HERE BECAUSE OF DEBUG MODE")
                 #     break # Do not wait for all of the updates.
 

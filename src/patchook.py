@@ -28,6 +28,13 @@ class Patchook:
         ## Auto-upading fields
 
         self.info = web_scraper.get_webhook_info(self.url)
+        self.forum = webhook_config.get("forum", None)
+        if self.forum is None:
+            self.channel_id = self.info.get("channel_id", None) if self.info else None
+            if self.channel_id:
+                self.channel_info = web_scraper.get_channel_info(self.channel_id)
+                self.channel_type = self.channel_info.get("type", None) if self.channel_info else None
+                self.forum = self.channel_type == 15
 
         self.guild_id = self.info.get("guild_id", None) if self.info else None
         if self.guild_id: self.config["guild_id"] = self.guild_id
@@ -37,7 +44,7 @@ class Patchook:
 
         self.application_owned = webhook_config.get("application_owned", None)
         if self.application_owned is None and self.info: # This is a constant and never changes without the token.
-            self.application_owned = self.info.get("application_owned", False)
+            self.application_owned = self.info.get("application_id", None) is not None
 
         self.last_announced_version = webhook_config.get("last_announced_version", None)
         if self.last_announced_version is None:
@@ -69,7 +76,29 @@ class Patchook:
         if not patch_dict:
             return print("[ERROR] Failed to get the patch data!")
 
-        request = self._make_request(patch_dict)
+        # This only works for normal messages since the forum ones are inaccessible for webhooks (the starting thread messages).
+        thread_id = None
+        message_id = self.config.get("version_to_message_id_map", {}).get(str(patch.version), None)
+        if message_id:
+            message_id = int(message_id) # Ensure this is an integer
+        # print(patch.version, message_id)
+        # if isinstance(message_id, str):
+        #     items = message_id.strip().split(">")
+        #     print(items)
+        #     if len(items) == 2:
+        #         thread_id = int(items[0].strip())
+        #         message_id = int(items[1].strip())
+        #     else:
+        #         message_id = int(message_id)
+
+        # if self.forum and message_id is not None:
+        #     if thread_id is None:
+        #         return print("[Error] No thread ID provided in the 'version_to_message_id_map' for a forum webhook!")
+
+        #     print("Posting to forum!", thread_id, message_id)
+        #     patch_dict["thread_id"] = thread_id
+
+        request = self._make_request(patch_dict, message_id=message_id)
         self._handle_request_response(request)
 
         return request
@@ -83,22 +112,23 @@ class Patchook:
         Returns:
             Dictionary representing the patch to be posted.
         """
-        patch_dict = patch.to_dict()
+        patch_dict = patch.to_dict(config=self.config)
         if self.forum:
             patch_dict["thread_name"] = patch.title
 
         if self.available_tags is not None:
             patch_dict["applied_tags"] = [int(self.available_tags[tag]) for tag in patch.get_tags() if tag in self.available_tags]
 
-        if self.application_owned:
-            patch_dict["components"] = [
-                {
-                    "type": 1,
-                    "components": patch.get_link_buttons()
-                }
-            ]
-        else:
-            patch_dict["content"] = patch.get_links_header()
+        if not (self.config.get("no_links") is True):
+            if self.application_owned:
+                patch_dict["components"] = [
+                    {
+                        "type": 1,
+                        "components": patch.get_link_buttons()
+                    }
+                ]
+            else:
+                patch_dict["content"] = patch.get_links_header()
 
         return self._add_custom_header(patch, patch_dict)
 
@@ -141,7 +171,7 @@ class Patchook:
 
         return patch_dict
 
-    def _make_request(self, patch_dict: dict) -> requests.Request:
+    def _make_request(self, patch_dict: dict, message_id: int=None) -> requests.Request:
         """Make request to Discord webhook with patch dictionary.
 
         Args:
@@ -150,6 +180,9 @@ class Patchook:
         Returns:
             requests.Request object representing the request.
         """
+        if message_id is not None:
+            return requests.patch(url=self.url + f"/messages/{message_id}", json=patch_dict, params={"wait": True})
+
         return requests.post(url=self.url, json=patch_dict, params={"wait": True})
 
     def _handle_request_response(self, request: requests.Request) -> None:
