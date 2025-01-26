@@ -27,67 +27,67 @@ if __name__ == '__main__':
         soup=web_scraper.get_patch_soup(url),
     ))
 
-    # ######################################################################
+    ######################################################################
 
-    # print("Lenght and identation test:")
-    # url = "https://forums.kleientertainment.com/game-updates/dst/498339-r1756/"
-    # patchook.post(Patch(
-    #     hotfix=True,
-    #     beta=True,
-    #     version=498339,
-    #     url=url,
-    #     soup=web_scraper.get_patch_soup(url),
-    # ))
-
-    # # ######################################################################
-
-    # print("Spoiler test and category alignment test:")
-    # url = "https://forums.kleientertainment.com/game-updates/dst/490507-r1720/"
-    # patchook.post(Patch(
-    #     hotfix=True,
-    #     beta=True,
-    #     version=497159,
-    #     url=url,
-    #     soup=web_scraper.get_patch_soup(url),
-    # ))
+    print("Lenght and identation test:")
+    url = "https://forums.kleientertainment.com/game-updates/dst/498339-r1756/"
+    patchook.post(Patch(
+        hotfix=True,
+        beta=True,
+        version=498339,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
 
     # ######################################################################
 
-    # print("Release Thumbnail Test:")
-    # url = "https://forums.kleientertainment.com/game-updates/dst/538959-r1935/"
-    # patchook.post(Patch(
-    #     hotfix=False,
-    #     beta=False,
-    #     version=538959,
-    #     url=url,
-    #     soup=web_scraper.get_patch_soup(url),
-    # ))
+    print("Spoiler test and category alignment test:")
+    url = "https://forums.kleientertainment.com/game-updates/dst/490507-r1720/"
+    patchook.post(Patch(
+        hotfix=True,
+        beta=True,
+        version=497159,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
 
-    # # ######################################################################
+    ######################################################################
 
-    # print("Hotfix Thumbnail Test")
-    # url = "https://forums.kleientertainment.com/game-updates/dst/542788-r1950/"
-    # patchook.post(Patch(
-    #     hotfix=True,
-    #     beta=False,
-    #     version=542788,
-    #     url=url,
-    #     soup=web_scraper.get_patch_soup(url),
-    # ))
+    print("Release Thumbnail Test:")
+    url = "https://forums.kleientertainment.com/game-updates/dst/538959-r1935/"
+    patchook.post(Patch(
+        hotfix=False,
+        beta=False,
+        version=538959,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
 
     # ######################################################################
 
-    # print("Release test:")
-    # url = "https://forums.kleientertainment.com/game-updates/dst/490507-r1720/"
-    # patchook.post(Patch(
-    #     hotfix=False,
-    #     beta=False,
-    #     version=497159,
-    #     url=url,
-    #     soup=web_scraper.get_patch_soup(url),
-    # ))
+    print("Hotfix Thumbnail Test")
+    url = "https://forums.kleientertainment.com/game-updates/dst/542788-r1950/"
+    patchook.post(Patch(
+        hotfix=True,
+        beta=False,
+        version=542788,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
 
-    # # ######################################################################
+    ######################################################################
+
+    print("Release test:")
+    url = "https://forums.kleientertainment.com/game-updates/dst/490507-r1720/"
+    patchook.post(Patch(
+        hotfix=False,
+        beta=False,
+        version=497159,
+        url=url,
+        soup=web_scraper.get_patch_soup(url),
+    ))
+
+    # ######################################################################
 
     # print("Lenght test:")
     # url = "https://forums.kleientertainment.com/game-updates/dst/565757-r2033/"
@@ -137,15 +137,15 @@ if __name__ == '__main__':
 
     # ######################################################################
 
-    print("Emoji and multiple sections test:")
-    url = "https://forums.kleientertainment.com/game-updates/dst/174200-r39/"
-    patchook.post(Patch(
-        hotfix=True,
-        beta=True,
-        version = 174200,
-        url=url,
-        soup=web_scraper.get_patch_soup(url),
-    ))
+    # print("Emoji and multiple sections test:")
+    # url = "https://forums.kleientertainment.com/game-updates/dst/174200-r39/"
+    # patchook.post(Patch(
+    #     hotfix=True,
+    #     beta=True,
+    #     version = 174200,
+    #     url=url,
+    #     soup=web_scraper.get_patch_soup(url),
+    # ))
 
     # ######################################################################
 

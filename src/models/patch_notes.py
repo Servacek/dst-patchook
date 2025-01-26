@@ -282,7 +282,7 @@ class PatchNotes:
 
             # Check if two consecutive lines are bold and make the first one a header
             if last_line and stripped.startswith("**") and last_line.startswith("**"):
-                result[last_text_index] = "### " + last_line.strip().strip("**").strip() + "\n"
+                result[last_text_index] = "### " + last_line.strip() + "\n"
                 last_line = result[last_text_index]
 
                 i = last_text_index - 1
