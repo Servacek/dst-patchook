@@ -1,7 +1,8 @@
 import requests
-import json
 import re
 
+
+from urllib.parse import urlparse
 from bs4 import BeautifulSoup, Tag, NavigableString
 
 # Constants
@@ -132,14 +133,37 @@ class PatchNotes:
         for spoiler_header in obj.find_all('div', {'class': SPOILER_HEADER_CLASS_NAME}):
             spoiler_header.decompose()
 
-        for spoiler in obj.find_all("div", {"class": SPOILER_CLASS_NAME}):
-            # Got throw each line in the spoiler and add ">>> " to the beginning
-            for line in spoiler.find_all(text=True):
-                if line.strip():
-                    line.replace_with(f"> {line.lstrip()}")
+        # for spoiler in obj.find_all("div", {"class": "ipsSpoiler"}):
+            # spoiler_content = spoiler.find("div", {"class": "ipsSpoiler_contents ipsClearfix"})
+            # if spoiler_content:
+            #     spoiler.replace_with(spoiler_content)
+
+
+        for script in obj.find_all('script'): # Remove the scripts since we cannot display them.
+            script.decompose()
+
+        # Those are the places where the scripts should be displayed.
+        # Since we removed the scripts, we should remove those as well.
+        for included_content in obj.find_all('div', {'id': 'includedContent'}):
+            included_content.decompose()
+
+        # unpack the spoiler (do not add any additional formatting here since it's unecessary confusing)
+        # for spoiler in obj.find_all("div", {"class": SPOILER_CLASS_NAME}):
+        #     for line in spoiler.find_all(text=True):
+        #         if line.strip():
+        #             line.replace_with(f"{line.lstrip()}")
+
+        # The images take too much space.
+        # for img in obj.find_all("img"):
+        #     image_url_raw = img.get("href") or img.get("src")
+        #     if img and image_url_raw:
+        #         img.replace_with(f"[[{img.get('alt', 'Image')}]](" + urlparse(image_url_raw, scheme='https').geturl() + ")")
 
         # Find all spans where they sent custom font size
         for span in obj.find_all("span", style=lambda value: value and 'font-size' in value):
+            if not span.string or not span.string.strip():
+                continue
+
             # Find the font-size value using regex
             font_size_match = re.search(r'font-size:\s*(\d+)px', span["style"])
             if font_size_match:
@@ -181,6 +205,9 @@ class PatchNotes:
 
         for hyperlink in obj.find_all('a'):
             url = hyperlink.get('href')
+            if url and url.startswith("#"): # These are relative links within the page,
+                hyperlink.decompose()       # so remove them to save some space.
+                continue
 
             if hyperlink.find("img"):
                 continue # Skip hyperlinks containing images.
@@ -191,7 +218,7 @@ class PatchNotes:
                 continue
 
             if url and not hyperlink.string.strip().startswith("http"):
-                hyperlink.string.replace_with(f"{' ' if hyperlink.string.startswith(' ') else ''}[{hyperlink.string}]({url})")
+                hyperlink.string.replace_with(f"{' ' if hyperlink.string.startswith(' ') else ''}[{self._iddf(hyperlink.string)}]({url})")
             else:
                 hyperlink.string.replace_with(hyperlink.string.strip())
 
@@ -205,6 +232,13 @@ class PatchNotes:
 
         return result
 
+    def _iddf(self, string: str) -> str:
+        result = string
+        for char in FORMAT_CHARS:
+            result = result.replace("\\" + char, char)
+
+        return result
+
     def _apply_markdown(self, obj: Tag):  # -> Tag:
         for tag in obj.find_all(DISCORD_MARKDOWN_HTML.keys()):
             template = DISCORD_MARKDOWN_HTML.get(tag.name)
@@ -215,8 +249,7 @@ class PatchNotes:
             for line in tag.text.splitlines(True):
                 # No markdown for links, let discord handle that.
                 if line.strip() and not line.startswith("http"):
-                    # We were stripping the line, so give it at least the trailling space.
-                    string += template.format(line)
+                    string += template.format(line.strip("\n"))
                 else:
                     string += line
 
@@ -250,7 +283,7 @@ class PatchNotes:
             last_line = result and result[last_text_index] or None
             if stripped == "\n":
                 # Skip the leading new lines since they will be stripped anyway.
-                if newline is False and result and last_ident == 0 and not stripped.startswith("## "):
+                if newline is False and result and last_ident == 0 and not stripped.startswith("### "):
                     newline = True
                     result.append("\n")
 
@@ -278,10 +311,11 @@ class PatchNotes:
                         result.insert(last_text_index, "\n")
                         last_text_index += 1
 
-                    result[last_text_index] = "**" + last_line.rstrip() + "**\n"
+                    result[last_text_index] = "**" + last_line.strip() + "**\n"
 
             # Check if two consecutive lines are bold and make the first one a header
-            if last_line and stripped.startswith("**") and last_line.startswith("**"):
+            # FIX THIS with regex checking.
+            if last_line and stripped.startswith("**") and stripped.endswith("**") and last_line.strip().startswith("**"):
                 result[last_text_index] = "### " + last_line.strip() + "\n"
                 last_line = result[last_text_index]
 

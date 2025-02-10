@@ -1,9 +1,12 @@
 import requests
 import json
 
+from dateutil import parser
+
 from time import sleep
 from bs4 import BeautifulSoup
-from patch import Patch
+from post import Post
+from post import Post, PostTag
 
 from config import config
 
@@ -18,10 +21,12 @@ VERSION_CLASS_NAME = "ipsType_sectionHead ipsType_break"
 MAX_ATTEMPTS = 3
 RETRY_AFTER = 60 # 1 minute
 
-PARSER = "html.parser"
+MAX_FORUM_SEARCH_DEPTH = 1
+
+PARSER = "html.parser" # TODO: Update to lxml?
 
 
-def get_updates_page(page_number: int=1) -> requests.Response:
+def get_source_url_page(url: str, page_number: int=1) -> BeautifulSoup:
     """
     Return the game updates page for DST.
 
@@ -30,7 +35,7 @@ def get_updates_page(page_number: int=1) -> requests.Response:
     :return: requests.Response object.
     """
 
-    return _make_request(KLEI_DST_UPDATES.format(page_number))
+    return BeautifulSoup(_make_request(url + "/page/" + str(page_number)).text, features=PARSER)
 
 
 webhook_info_cache = {}
@@ -100,7 +105,7 @@ def get_channel_info(channel_id: int) -> dict:
             return channel_info
 
 
-def get_patch_soup(patch_url: str) -> BeautifulSoup:
+def get_post_soup(patch_url: str) -> BeautifulSoup:
     """
     Return the BeautifulSoup object for the given URL.
     :param patch_url: A string with the URL.
@@ -111,7 +116,7 @@ def get_patch_soup(patch_url: str) -> BeautifulSoup:
 
 
 cached_newest_version = None
-def get_newest_version() -> int:
+def get_newest_version(url: str) -> int:
     """
     Return the highest version number from the game updates page.
     :return: An integer with the newest version.
@@ -124,8 +129,7 @@ def get_newest_version() -> int:
         return cached_newest_version
 
     newest_version = None
-    page_response = get_updates_page() # Newest version should be always on the first page.
-    soup = BeautifulSoup(page_response.text, features=PARSER)
+    soup = get_source_url_page(url)  # Newest version should be always on the first page.
     for data in soup.find_all('li', {'class': 'cCmsRecord_row'}):
         version = int(
             data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
@@ -141,64 +145,96 @@ def get_newest_version() -> int:
 
 
 # This allows for fetching a range of versions.
-def get_new_patches(min_version: int, max_version: int=None) -> list[Patch]:
+def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Post]:
     """
     Return a list of new patches with versions higher than the target version.
     :param target_version: An integer with the target version.
-    :return: A list of Patch objects.
+    :return: A list of Post objects.
     """
 
-    new_patches = []
+    new_posts = []
 
+    last_version_fetched = None
     page_number = 1
     while True:
-        updates_page = get_updates_page(page_number)
-        soup = BeautifulSoup(updates_page.text, features="html.parser")
-        last_version_fetched = None
-        for data in soup.find_all('li', {'class': 'cCmsRecord_row'}):
-            hotfix = "hotfix" in data.find('span').get('title').lower()
-
+        soup = get_source_url_page(url, page_number=page_number)
+        records = soup.find_all('li', {'class': 'cCmsRecord_row'})
+        for data in records:
             version = int(data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
             last_version_fetched = version
             if version > min_version and (max_version is None or version < max_version):
-                url = data.find('a').get("href")
+                post_url = data.find('a').get("href")
+                # post_soup = get_post_soup(post_url)
+
+                # full_title = post_soup.find("h1", {"class": "ipsType_pageTitle ipsType_largeTitle ipsType_break"})
+                # full_title_text = full_title and full_title.text and full_title.text.strip() or None
+                # print(full_title_text)
+                # exit()
+
+                # Add the apropriate tags
                 tag = data.find('span', {'class': 'ipsBadge ipsBadge_negative'})
-                beta = tag and "test" in tag.text.lower() or False
+                new_posts.append(Post(
+                    PostTag.UPDATE,
+                    PostTag.HOTFIX if "hotfix" in data.find('span').get('title').lower() else None,
+                    PostTag.BETA if tag and tag.text and "test" in tag.text.lower() or False else None,
 
-                soup = get_patch_soup(url)
-
-                new_patches.append(Patch(
-                    hotfix=hotfix,
-                    beta=beta,
-                    version=version,
-                    url=url,
-                    soup=soup,
+                    url=post_url,
+                    soup=get_post_soup(post_url),
+                    source_url=url,
+                    version=version
                 ))
 
-                if len(new_patches) >= config.get("max_announcements_per_webhook", 50):
+                if len(new_posts) >= config.get("max_announcements_per_webhook", 50):
                     print("[Warn] They may be even more new versions but we have already reached the limit!")
-                    break
+                    return new_posts
 
-                # if config.get("debug_mode"):
-                #     print("STOPPING HERE BECAUSE OF DEBUG MODE")
-                #     break # Do not wait for all of the updates.
+        if not records:
+            for post in soup.find_all("div" , {"class": "ipsDataItem_main"}):
+                post_author = post.find("div", {"class": "ipsDataItem_meta"}).find("a")
 
-            # elif hotfix:
-            #     break # Hotfixes are not pinned, but let's be sure.
-            #           # It's not that much of a computational effort once we have it fetched and processed.
+                dev = False
+                for span in post_author.find_all("span"):
+                    span_style = span.get("style")
+                    # "color:goldenrod" (for mods)
+                    # "color:red" (for devs and admins)
+                    if span_style and "color:red" in span_style.lower().replace(" ", ""):
+                        dev = True
+                        break
+                if not dev:
+                    continue
 
-        # Last version on this patch is older than the target version.
+                timestamp = int(parser.parse(post.find("time").get("datetime")).timestamp())
+                last_version_fetched = timestamp
+                if timestamp > min_version and (max_version is None or timestamp < max_version):
+                    post_url = post.find("span", {"class": "ipsType_break ipsContained"}).find("a").get("href")
+                    soup = get_post_soup(post_url)
+                    article = soup.find("article")
+                    if article and [link.get("href") for link in article.find_all("a") if str(link.text).lower() == "view full update"]:
+                        continue # Skip updates since they are already announced separately.
+
+                    post = Post(url=post_url, soup=soup, source_url=url)
+                    post.add_tag(PostTag.FORUM_POST)
+                    new_posts.append(post)
+
+                    if len(new_posts) >= config.get("max_announcements_per_webhook", 50):
+                        print("[Warn] They may be even more new versions but we have already reached the limit!")
+                        return new_posts
+
+            if page_number == MAX_FORUM_SEARCH_DEPTH: # If we reach the maximal depth
+                break
+
+        # Last version on this post is older than the target version.
         # We assume that the page is not full of pinned patches (usually only one is pinned).
-        if last_version_fetched < min_version:
+        if not last_version_fetched or last_version_fetched < min_version:
             break
 
         page_number += 1
 
-    return new_patches
+    return new_posts
 
 
 def get_specific_patch(target_version):
-    return get_new_patches(target_version - 1, target_version + 1)
+    return get_new_posts(target_version - 1, target_version + 1)
 
 #### Private Helper Functions ####
 

@@ -1,34 +1,38 @@
 import requests
+import copy
 
-from patch import Patch, PatchTag
+from post import Post, PostTag
+from post import Post
+from config import config
 import web_scraper
 
 
 class Patchook:
-    """Class representing the webhook object for posting update patch notes to Discord."""
+    """Class representing the webhook object for posting update post to Discord."""
+
+    last_announced_version: dict[str, int] = {}
 
     def __init__(self, webhook_config: dict, *args, **kwargs) -> None:
         """Initialize Patchook object with webhook configuration."""
 
-        self.original_config = webhook_config
-        self.config = webhook_config.copy()
+        self.config = copy.deepcopy(webhook_config)
 
-        self._configure_ignore_flags(webhook_config)
+        self.ignore_tag_rule = self.config.get("ignore_tag_rule", None)
 
-        self.available_tags = webhook_config.get("available_tags", None)
-        self.url = webhook_config.get("url", None)
+        self.available_tags = self.config.get("available_tags", None)
+        self.url = self.config.get("url", None)
         if not self.url:
             raise ValueError("Discord webhook URL is required. Please configure it for each webhook in config.json!")
 
-        self.custom_patch_header = webhook_config.get("custom_patch_header", None)
-        self.video_only = webhook_config.get("video_only", False)
-        self.forum = webhook_config.get("forum", False)
-        self.enabled = webhook_config.get("enabled", True)
+        self.custom_fields = self.config.get("custom_fields", None)
+        self.video_only = self.config.get("video_only", False)
+        self.forum = self.config.get("forum", False)
+        self.enabled = self.config.get("enabled", True)
 
         ## Auto-upading fields
 
         self.info = web_scraper.get_webhook_info(self.url)
-        self.forum = webhook_config.get("forum", None)
+        self.forum = self.config.get("forum", None)
         if self.forum is None:
             self.channel_id = self.info.get("channel_id", None) if self.info else None
             if self.channel_id:
@@ -42,46 +46,56 @@ class Patchook:
         self.name = self.info.get("name", None) if self.info else None
         if self.name: self.config["name"] = self.name
 
-        self.application_owned = webhook_config.get("application_owned", None)
+        self.application_owned = self.config.get("application_owned", None)
         if self.application_owned is None and self.info: # This is a constant and never changes without the token.
             self.application_owned = self.info.get("application_id", None) is not None
 
-        self.last_announced_version = webhook_config.get("last_announced_version", None)
-        if self.last_announced_version is None:
-            self.last_announced_version = web_scraper.get_newest_version()
-            if self.last_announced_version:
+        last_announce_version = self.config.get("last_announced_version", {})
+        for key in last_announce_version:
+            if not isinstance(last_announce_version[key], int):
+                # Convert to integer if possible
+                if isinstance(last_announce_version[key], str) and last_announce_version[key].isdigit():
+                    last_announce_version[key] = int(last_announce_version[key])
+                else:
+                    del last_announce_version[key]
+
+        if last_announce_version:
+            self.last_announced_version = last_announce_version
+        else: # Handling the case where no valid "last_announced_version" is saved.
+            last_online_version = web_scraper.get_newest_version(Post.DEFAULT_SOURCE_URL)
+            last_announce_version[Post.DEFAULT_SOURCE_URL] = last_online_version
+            if last_online_version:
+                # We have successfully fetched the newest version so we start from here.
+                # No updates this run, therefore keep the last_announced_version dictionary empty.
                 self.config["last_announced_version"] = self.last_announced_version
             else:
                 print("Failed to fetch the newest version for Patchook", self.url, "\nPlease update \"last_announced_version\" field in the config JSON file manually.")
 
+    def can_post(self, post: Post) -> bool:
+        return (not (self.ignore_tag_rule and post.meets_tag_rule(self.ignore_tag_rule))) and (
+            self.last_announced_version.get(post.source_url, None) is not None and
+            (post.version > self.last_announced_version[post.source_url] or config.get('debug_mode', False))
+        )
 
-    def _configure_ignore_flags(self, webhook_config: dict) -> None:
-        """Configure ignore flags based on webhook configuration."""
-        ignore_config = webhook_config.get("ignore", {})
-        self.ignore_beta = ignore_config.get("beta", False)
-        self.ignore_release = ignore_config.get("release", False)
-        self.ignore_hotfix = ignore_config.get("hotfix", False)
-        self.ignore_major = ignore_config.get("major", False)
-
-    def post(self, patch: Patch) -> requests.Request:
-        """Posts the patch notes to the specified Discord webhook.
+    def post(self, post: Post) -> requests.Response:
+        """Sends the post to the specified Discord webhook.
 
         Args:
-            patch: Patch object to be posted.
+            post: Post object to be posted.
 
         Returns:
             requests.Request object representing the request.
         """
-        patch_dict = self._build_patch_dict(patch)
-        if not patch_dict:
-            return print("[ERROR] Failed to get the patch data!")
+        post_dict = self._build_patch_dict(post)
+        if not post_dict:
+            return print("[ERROR] Failed to get the post data!")
 
         # This only works for normal messages since the forum ones are inaccessible for webhooks (the starting thread messages).
         thread_id = None
-        message_id = self.config.get("version_to_message_id_map", {}).get(str(patch.version), None)
+        message_id = self.config.get("version_to_message_id_map", {}).get(str(post.version), None)
         if message_id:
             message_id = int(message_id) # Ensure this is an integer
-        # print(patch.version, message_id)
+        # print(post.version, message_id)
         # if isinstance(message_id, str):
         #     items = message_id.strip().split(">")
         #     print(items)
@@ -98,101 +112,113 @@ class Patchook:
         #     print("Posting to forum!", thread_id, message_id)
         #     patch_dict["thread_id"] = thread_id
 
-        request = self._make_request(patch_dict, message_id=message_id)
-        self._handle_request_response(request)
+        response = self._make_request(post_dict, message_id=message_id)
+        self._handle_request_response_for_patch(response, post)
 
-        return request
+        return response
 
-    def _build_patch_dict(self, patch: Patch) -> dict:
-        """Build patch dictionary for posting to Discord webhook.
+    def add_buttons(self, post_dict: dict, buttons: list[dict]) -> dict:
+        if not post_dict.get("components", None):
+            post_dict["components"] = []
+
+        # An Action Row can contain up to 5 buttons.
+        # You can have up to 5 Action Rows per message
+        buttons_buffer = buttons.copy()
+        while (buttons_buffer):
+            last_component = post_dict["components"][-1] if post_dict["components"] else None
+            if last_component and len(last_component["components"]) < 5:
+                last_component["components"].append(buttons_buffer.pop(0)) # Keep the order
+                continue
+
+            if len(post_dict["components"]) < 5:
+                post_dict["components"].append({"type": 1, "components": []})
+                continue
+
+            break
+
+    def _build_patch_dict(self, post: Post) -> dict:
+        """Build post dictionary for posting to Discord webhook.
 
         Args:
-            patch: Patch object to be posted.
+            post: Post object to be posted.
 
         Returns:
-            Dictionary representing the patch to be posted.
+            Dictionary representing the post to be posted.
         """
-        patch_dict = patch.to_dict(config=self.config)
+        patch_dict = post.to_dict(config=self.config)
         if self.forum:
-            patch_dict["thread_name"] = patch.title
+            patch_dict["thread_name"] = patch_dict["embeds"][0]["title"]
 
         if self.available_tags is not None:
-            patch_dict["applied_tags"] = [int(self.available_tags[tag]) for tag in patch.get_tags() if tag in self.available_tags]
+            sorted_tags = sorted(post.get_tags())
+            patch_dict["applied_tags"] = [int(self.available_tags[tag.id]) for tag in sorted_tags if tag.id in self.available_tags]
 
         if not (self.config.get("no_links") is True):
+            # Only owned applications can display message components.
             if self.application_owned:
-                patch_dict["components"] = [
-                    {
-                        "type": 1,
-                        "components": patch.get_link_buttons()
-                    }
-                ]
+                # An Action Row can contain up to 5 buttons.
+                # You can have up to 5 Action Rows per message
+                self.add_buttons(patch_dict, post.get_link_buttons())
             else:
-                patch_dict["content"] = patch.get_links_header()
+                patch_dict["content"] = post.get_links_header()
 
-        return self._add_custom_header(patch, patch_dict)
+        if config.get("debug_mode", False) is True and self.forum is False:
+            patch_dict["content"] = "**TAGS:** " + " ".join("`" + tag.id.upper() + "`" for tag in post.tags) + ("\n" + patch_dict["content"] if "content" in patch_dict else "")
 
-    def _add_custom_header(self, patch: Patch, patch_dict: dict) -> dict:
-        """Add custom header to patch dictionary if available.
+        _dict = self._add_custom_fields(post, patch_dict)
+        return _dict
 
-        Args:
-            patch_dict: Dictionary representing the patch to be posted.
-
-        Returns:
-            Dictionary representing the patch to be posted with custom header.
-        """
-        if not self.custom_patch_header:
-            return patch_dict # No changes
-
-        patch_tags = patch.get_tags()
-        for tags_string, header in self.custom_patch_header.items():
-            tags_required, tags_prohibited, tags_optional = [], [], []
-            for tag in tags_string.split():
-                tag = tag.strip()
-                tag_name = tag.strip("!").strip("?")
-                if not tag_name in PatchTag.ALL:
-                    print("[Warn] Patch tag", tag_name, "is not valid!")
-                    continue
-
-                if tag.startswith("!") or tag.endswith("!"):
-                    tags_prohibited.append(tag_name)
-                elif tag.startswith("?") or tag.endswith("?"):
-                    tags_optional.append(tag_name)
-                else:
-                    tags_required.append(tag_name)
-
-            if (
-                all(tag in patch_tags for tag in tags_required) and # All required tags!
-                not any(tag in patch_tags for tag in tags_prohibited) and # No prohibited tags!
-                all(tag in tags_required or tag in tags_optional for tag in patch_tags) # No redundant tags!
-            ):
-                patch_dict["content"] = header + \
-                    ("\n" + patch_dict["content"] if "content" in patch_dict else "")
-
-        return patch_dict
-
-    def _make_request(self, patch_dict: dict, message_id: int=None) -> requests.Request:
-        """Make request to Discord webhook with patch dictionary.
+    def _add_custom_fields(self, post: Post, post_dict: dict) -> dict:
+        """Add custom header to post dictionary if available.
 
         Args:
-            patch_dict: Dictionary representing the patch to be posted.
+            patch_dict: Dictionary representing the post to be posted.
 
         Returns:
-            requests.Request object representing the request.
+            Dictionary representing the post to be sent with a custom header.
         """
+        if not self.custom_fields:
+            return post_dict # No changes
+
+        for tag_rule, fields in self.custom_fields.items():
+            if post.meets_tag_rule(tag_rule):
+                if "buttons" in fields and fields["buttons"] and "components" in post_dict:
+                    self.add_buttons(post_dict, post.get_link_buttons(fields["buttons"]))
+
+                if "content" in fields and fields["content"]:
+                    post_dict["content"] = fields["content"] + \
+                        ("\n" + post_dict["content"] if "content" in post_dict else "")
+
+        return post_dict
+
+    def _make_request(self, post_dict: dict, message_id: int=None) -> requests.Response:
+        """Make request to Discord webhook with post dictionary.
+
+        Args:
+            patch_dict: Dictionary representing the post to be posted.
+            message_id: Integer representing the message ID to edit. A new message will be created.
+
+        Returns:
+            requests.Response object representing the request response.
+        """
+        # print(patch_dict)
         if message_id is not None:
-            return requests.patch(url=self.url + f"/messages/{message_id}", json=patch_dict, params={"wait": True})
+            return requests.patch(url=self.url + f"/messages/{message_id}", json=post_dict, params={"wait": True})
 
-        return requests.post(url=self.url, json=patch_dict, params={"wait": True})
+        return requests.post(url=self.url, json=post_dict, params={"wait": True})
 
-    def _handle_request_response(self, request: requests.Request) -> None:
+    def _handle_request_response_for_patch(self, response: requests.Response, post: Post) -> None:
         """Handle response from Discord webhook request.
 
         Args:
-            request: requests.Request object representing the request.
+            response (requests.Response): Response from Discord webhook request.
+            post (Post): Represents the post object receiving this response after being posted.
         """
-        if not request.ok:
-            print(f"[{request.status_code}]",
-                  request.reason, request.text or "")
+        if response.ok:
+            print(f"[{response.status_code}] Successfully posted the patchnotes!")
+
+            if (post.source_url and post.version):
+                self.last_announced_version[post.source_url] = post.version
+                self.config["last_announced_version"][post.source_url] = post.version
         else:
-            print(f"[{request.status_code}] Successfully posted the patchnotes!")
+            print(f"[{response.status_code}]", response.reason, response.text or "")
