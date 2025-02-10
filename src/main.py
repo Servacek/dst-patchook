@@ -98,7 +98,7 @@ def main():
     patchooks: list[Patchook] = []
     for webhook_config in webhook_configs:
         if webhook_config.get("enabled", True) is False: # All webhooks are enabled by default
-            name = webhook_config.get("name", webhook_config.get("url"), "UNKNOWN")
+            name = webhook_config.get("name", webhook_config.get("url"))
             guild = webhook_config.get("guild_id", "UNKNOWN")
             print(f"[Info] Webhook \"{name}\" from guild \"{guild}\" is disabled. Skipping...")
             continue
