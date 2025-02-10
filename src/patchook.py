@@ -15,7 +15,7 @@ class Patchook:
     def __init__(self, webhook_config: dict, *args, **kwargs) -> None:
         """Initialize Patchook object with webhook configuration."""
 
-        self.config = copy.deepcopy(webhook_config)
+        self.config = webhook_config
 
         self.ignore_tag_rule = self.config.get("ignore_tag_rule", None)
 

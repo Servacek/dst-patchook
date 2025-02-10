@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from copy import deepcopy
 from os import environ
 from pathlib import Path
 from time import sleep
@@ -91,10 +92,11 @@ def announce_new_versions(patchooks: list[Patchook]):
 
 
 def main():
-    webhook_configs = config.get('webhooks', [])
+    webhook_configs: list = config.get('webhooks', [])
     if not webhook_configs: # There is nothing for us to do.
         return print("[Warn] No webhooks found. Add some in your config.json file!\nCheck the example_config.json for reference.")
 
+    original_webhook_configs = deepcopy(webhook_configs)
     patchooks: list[Patchook] = []
     for webhook_config in webhook_configs:
         if webhook_config.get("enabled", True) is False: # All webhooks are enabled by default
@@ -112,10 +114,9 @@ def main():
         # multiple times without manually modifying the files back each time.
         print("[Warning]: Debug mode enabled! Configuration updates won't be saved.")
     else:
-        updated_webhook_configs = [patchook.config for patchook in patchooks]
-        if updated_webhook_configs != webhook_configs:
+        if original_webhook_configs != webhook_configs:
             print("[Info] Webhook configurations have changed during announcing process! Saving the updates...")
-            config["webhooks"] = updated_webhook_configs
+            config["webhooks"] = webhook_configs
             save_config()
 
     print("[Info] Done!")
