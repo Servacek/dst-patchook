@@ -216,11 +216,11 @@ class Post:
         # This is a bit more specific since the URL could match anything.
         self.discussion_url = None
         matches = article.find_all('a', href=FORUM_DISCUSSION_URL_PATTERN) if article else None
-        print("\n".join(filter(None, [x.get("href") for x in article.find_all("a", recursive=False) if x.text == "Discussion Topic"])) if article else "")
+        #print("\n".join(filter(None, [x.get("href") for x in article.find_all("a", recursive=False) if x.text == "Discussion Topic"])) if article else "")
         if matches:
             self.discussion_url = matches[-1].get("href")
-        # if not self.discussion_url:
-        #     self.discussion_url = self.url or KLEI_FORUMS_URL
+        if not self.has_tag(PostTag.UPDATE):
+            self.discussion_url = self.url
 
         self.full_update_url = None
         match = search(compile(FULL_UPDATE_URL_PATTERN.format(self.version)), str(self.soup)) if self.soup else None
@@ -321,7 +321,7 @@ class Post:
 
         hyperlinks = [ # Sorted by frequency of occurrence
             # Maybe only one of those would be enough?
-            {"url": self.discussion_url, "text": "Join Discussion", "icon": Icons.FORUM} if self.discussion_url else None,
+            {"url": self.discussion_url or KLEI_FORUMS_URL, "text": "Join Discussion", "icon": Icons.FORUM},
             {"url": self.full_update_url, "text": "View Full Update", "icon": Icons.CHANGELOG} if self.full_update_url and self.has_tag(PostTag.UPDATE) else None,
             # This button is just uneccessary
             #{"url": KLEI_BUG_TRACKER_URL, "text": "Klei Bug Tracker", "icon": Icons.BUG_TRACKER} if self.has_tag(PostTag.UPDATE) else None,
