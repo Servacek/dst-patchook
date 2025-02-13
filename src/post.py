@@ -32,6 +32,7 @@ KLEI_TWITCH_CHANNEL = "https://www.twitch.tv/kleientertainment"
 TWITCH_DROPS_ARTICLE_URL = "https://support.klei.com/hc/en-us/articles/360029881771-Twitch-tv-Drops"
 TWITCH_DROP_ANIM_URL = r'(http[s]?:\/\/kleiforums\.s3\.amazonaws\.com\/drops\/post\/.+\.html)'
 TWITCH_DROP_IMAGE_URL_PATTERN = r'(https:\/\/cdn\.forums\.klei\.com\/drops\/image\/.+_item\.jpg)'
+BETA_BRANCH_OPTIN_POST_URL = "https://forums.kleientertainment.com/forums/topic/106156-how-to-opt-in-to-the-beta-branch-for-dont-starve-together/"
 
 # youtube_regex = (
 #     r'(https?://)?(www\.)?'
@@ -112,11 +113,15 @@ class _PTag:
 
 class PostTag: # The default category is "announcement"
     UPDATE      = _PTag("update", color=COLOR_ORANGE) # {"id": "update", "color": COLOR_ORANGE}
-    HOTFIX      = _PTag("hotfix", color=COLOR_BROWN, priority=2, footer_text="This is a hotfix release")
+    HOTFIX      = _PTag("hotfix", color=COLOR_BROWN, priority=2,
+        footer_text="This is a hotfix release",
+        footer_icon_url="https://cdn.discordapp.com/attachments/1066442901380403333/1339626180810244096/fire.png"
+    )
     MAJOR       = _PTag("major", color=COLOR_ORANGE, priority=2)
     RELEASE     = _PTag("release", title_tag="(Release)")
     BETA        = _PTag("beta", color=COLOR_BLUE, title_tag="(Beta)", priority=3,
         footer_text="A beta is available for this version",
+        footer_icon_url="https://cdn.discordapp.com/attachments/1066442901380403333/1339626219091791963/salt.png"
     )
     FORUM_POST  = _PTag("forum")
     TWITCH_DROP = _PTag("twitch_drop", color=COLOR_PURPLE, priority=2, buttons=[
@@ -154,6 +159,7 @@ class Post:
     publish_date: str = ""
     discussion_url: str = None
     full_update_url: str = None
+    release_id: int = None # Speacial field for updates (eqaul to the rowId in the url)
     notes: PatchNotes
 
     thumbnail_url: str = None
@@ -324,7 +330,8 @@ class Post:
             {"url": self.discussion_url or KLEI_FORUMS_URL, "text": "Join Discussion", "icon": Icons.FORUM},
             {"url": self.full_update_url, "text": "View Full Update", "icon": Icons.CHANGELOG} if self.full_update_url and self.has_tag(PostTag.UPDATE) else None,
             # This button is just uneccessary
-            #{"url": KLEI_BUG_TRACKER_URL, "text": "Klei Bug Tracker", "icon": Icons.BUG_TRACKER} if self.has_tag(PostTag.UPDATE) else None,
+            #{"url": KLEI_BUG_TRACKER_URL, "text": "Klei Bug Tracker", "icon": Icons.BUG_TRACKER} if self.has_tag(PostTag.UPDATE) else None,§
+            {"url": BETA_BRANCH_OPTIN_POST_URL, "text": "Opt-In the Beta Branch", "icon": Icons.BETA} if self.has_tag(PostTag.BETA) and self.has_tag(PostTag.UPDATE) else None,
             {"url": self.video_url, "text": "Watch Trailer", "icon": Icons.YOUTUBE} if isinstance(self.video_url, str) and len(self.video_url) > 0 else None,
         ]
         for rewardlink in self.rewardlinks:
@@ -431,7 +438,7 @@ class Post:
             "url": self.url,
             "color": self._get_tag_field("color", DEFAULT_COLOR),
             "author": self.author,
-            "footer": { "text": self._get_tag_field("footer_text", "") },
+            "footer": { "text": self._get_tag_field("footer_text", ""), "icon_url": self._get_tag_field("footer_icon_url")},
         }
 
         desc_footer = self.get_desc_footer()

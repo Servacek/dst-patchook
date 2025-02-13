@@ -217,8 +217,8 @@ class Patchook:
         if response.ok:
             print(f"[{response.status_code}] Successfully posted the patchnotes!")
 
-            if (post.source_url and post.version):
-                self.last_announced_version[post.source_url] = post.version
-                self.config["last_announced_version"][post.source_url] = post.version
+            if (post.source_url and (post.version or post.release_id)):
+                self.last_announced_version[post.source_url] = post.release_id or post.version
+                self.config["last_announced_version"][post.source_url] = post.release_id or post.version
         else:
             print(f"[{response.status_code}]", response.reason, response.text or "")

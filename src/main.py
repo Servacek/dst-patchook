@@ -15,7 +15,10 @@ import web_scraper
 from config import config, save_config
 
 
-__version__ = "3.0a"
+## TODO: Some release posted when a beta branch is open will not be posted since their version is
+## usually lower than the beta.
+
+__version__ = "3.0b"
 __author__  = "Fi7iP"
 
 

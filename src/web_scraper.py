@@ -160,10 +160,12 @@ def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Pos
         soup = get_source_url_page(url, page_number=page_number)
         records = soup.find_all('li', {'class': 'cCmsRecord_row'})
         for data in records:
-            version = int(data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
-            last_version_fetched = version
-            if version > min_version and (max_version is None or version < max_version):
-                post_url = data.find('a').get("href")
+            a = data.find("a")
+            release_id = int(a.get("data-releaseid"))
+            #release_id = int(data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
+            last_version_fetched = release_id
+            if release_id > min_version and (max_version is None or release_id < max_version):
+                post_url = a.get("href")
                 # post_soup = get_post_soup(post_url)
 
                 # full_title = post_soup.find("h1", {"class": "ipsType_pageTitle ipsType_largeTitle ipsType_break"})
@@ -172,8 +174,9 @@ def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Pos
                 # exit()
 
                 # Add the apropriate tags
+                version = int(data.find('h3', {'class': VERSION_CLASS_NAME}).contents[0].strip())
                 tag = data.find('span', {'class': 'ipsBadge ipsBadge_negative'})
-                new_posts.append(Post(
+                post = Post(
                     PostTag.UPDATE,
                     PostTag.HOTFIX if "hotfix" in data.find('span').get('title').lower() else None,
                     PostTag.BETA if tag and tag.text and "test" in tag.text.lower() or False else None,
@@ -182,7 +185,9 @@ def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Pos
                     soup=get_post_soup(post_url),
                     source_url=url,
                     version=version
-                ))
+                )
+                post.release_id = release_id
+                new_posts.append(post)
 
                 if len(new_posts) >= config.get("max_announcements_per_webhook", 50):
                     print("[Warn] They may be even more new versions but we have already reached the limit!")

@@ -7,3 +7,4 @@ class Icons:
     BUG_TRACKER     = "<:lupa:1259832929534738465>"
     AMBASSADORS     = "<:klei:1336398471174946826>"
     TWITCH          = "<:twitch:1336613011691147264>"
+    BETA            = "<a:salt:997509143936114718>"
