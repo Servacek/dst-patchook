@@ -18,6 +18,14 @@ __version__ = "3.0b"
 __author__  = "Fi7iP"
 
 
+# NOTE: Sometimes the updates are not properly posted in the Game Updates section,
+# this is where the RSS Feed could come in play, which is usually more accurate.
+# But using the RSS feed would mean we wouldn't be able to get the patch
+# tags like "beta" or "release".
+# The text could be taken from the RSS Feed as well, since it is formatted well enough if
+# if it doesn't seem like that.
+
+
 # The discord REST API rate limit is 16 requests/second.
 # So at most one request every 3 seconds.
 # Cooldown for sending the patches
@@ -26,6 +34,7 @@ COOLDOWN_FREQUENCY = 3 # Every X posts for "POST_COOLDOWN" seconds
 RETRY_AFTER_RESERVE = 60 # To compensate any clock drift
 RETRY_AFTER_DEFAULT = 60 - RETRY_AFTER_RESERVE
 GATEWAY_UNVAILABLE_SLEEP = 60
+RSS_FEED_URL = "https://forums.kleientertainment.com/rss/6-dont-starve-together-updates.xml/?member_id=1196151&key=bfcc886612d9c6a9b1e4eac9a5162e11"
 MAX_VERSIONS_TO_ANNOUNCE = config.get("max_announcements_per_webhook", 50)
 LIMIT_VERSION = 0 # Version where we should break at.
 

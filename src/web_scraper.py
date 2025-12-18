@@ -1,5 +1,6 @@
 import requests
 import json
+import re
 
 from dateutil import parser
 
@@ -144,6 +145,20 @@ def get_newest_version(url: str) -> int:
         return None
 
 
+# def get_new_posts_from_rss(url: str, min_version: int, max_version: int=None) -> list[Post]:
+#     response = _make_request(url)
+#     if response.status_code != 200:
+#         print(f"Failed to fetch the RSS feed from {url}. Status code: {response.status_code}")
+#         return []
+
+#     version_regex = re.compile(r'<title>(\d+)</title>\s*<link>\s*https://forums.kleientertainment.com/game-updates/dst/(\d+-r\d+)/\s*</link>')
+#     matches = version_regex.search(response.text)
+#     version = matches.group(1) if matches else None
+#     url_id = matches.group(2) if matches else None
+
+
+
+
 # This allows for fetching a range of versions.
 def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Post]:
     """
@@ -234,6 +249,15 @@ def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Pos
             break
 
         page_number += 1
+
+    # NOTE: This is in case we would also use the RSS feed as a backup.
+    # Remove duplicate posts since we use multiple systems for fetching.
+    # seen_versions = set()
+    # for post in new_posts[:]:
+    #     if post.version in seen_versions:
+    #         new_posts.remove(post)
+    #     else:
+    #         seen_versions.add(post.version)
 
     return new_posts
 
