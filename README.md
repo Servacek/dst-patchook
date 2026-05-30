@@ -30,17 +30,52 @@ Default webhooks will just post the embed in the channel they are integrated in.
 ### 6. Application Owned Webhooks
 If the webhook configured was created by a bot and marked as so in `config.json`, it will use link buttons instead of hyperlinks.
 
+## Used By
+
+Patchook is actively keeping players up to date with the newest changes in the game in these communities:
+
+[![Don't Fight Together](https://invidget.switchblade.xyz/phewTaz)](https://discord.gg/phewTaz)
+[![[CZ/SK] Don't Starve](https://invidget.switchblade.xyz/RHzJxut)](https://discord.gg/RHzJxut)
+
 ## Dependencies
 - Python v3.10 or higher
 - beautifulsoup4 v4.12.3
 - requests v2.32.3
+- python-dateutil v2.9.0
 
 ## Setup
-1. Download dependencies from [`requirements.txt`](https://github.com/Servacek/dst-patchook/blob/main/requirements.txt) using `pip install -r requirements.txt` or by any other suitable alternative.
-2. Create `config.json` file in the [`data`](https://github.com/Servacek/dst-patchook/tree/main/data) folder.
-3. Configure your webhooks using your newly created `config.json` as shown in [`example_config.json`](https://github.com/Servacek/dst-patchook/blob/main/data/example_config.json).
-4. Setup a task (using `crontab` or `systemd` timers, or any other alternative) which will every once in a while trigger [`main.py`](https://github.com/Servacek/dst-patchook/blob/main/src/main.py) and check for the updates.
+
+Start by creating `config.json` in the [`data`](https://github.com/Servacek/dst-patchook/tree/main/data) folder and configuring your webhooks as shown in [`example_config.json`](https://github.com/Servacek/dst-patchook/blob/main/data/example_config.json).
+
+Then pick one of the two methods below to run Patchook.
 
 ![image](https://github.com/Servacek/dst-patchook/assets/105163129/0fdd66d7-8dd7-4165-8711-488be5a42f1a)
 
+### Option A — Virtual Environment (Python 3.10+)
 
+```bash
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# Linux / macOS
+source .venv/bin/activate
+
+pip install -r requirements.txt
+python src/main.py
+```
+
+Schedule periodic runs using `crontab`, `systemd` timers, Task Scheduler, or any other alternative so Patchook checks for updates automatically.
+
+### Option B — Docker
+
+```bash
+# Build the image
+docker build -t patchook .
+
+# Run once
+docker run --rm -v "$(pwd)/data:/app/data" patchook
+```
+
+The `-v` flag mounts your local `data/` folder into the container so `config.json` and any persisted state survive between runs.
+
+To run Patchook on a schedule, use a cron job or `systemd` timer to execute the `docker run` command periodically.

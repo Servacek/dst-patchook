@@ -6,7 +6,6 @@ from dateutil import parser
 
 from time import sleep
 from bs4 import BeautifulSoup
-from post import Post
 from post import Post, PostTag
 
 from config import config
@@ -36,7 +35,10 @@ def get_source_url_page(url: str, page_number: int=1) -> BeautifulSoup:
     :return: requests.Response object.
     """
 
-    return BeautifulSoup(_make_request(url + "/page/" + str(page_number)).text, features=PARSER)
+    response = _make_request(url + "/page/" + str(page_number))
+    if response is None:
+        return BeautifulSoup("", features=PARSER)
+    return BeautifulSoup(response.text, features=PARSER)
 
 
 webhook_info_cache = {}
@@ -91,15 +93,19 @@ def get_channel_info(channel_id: int) -> dict:
         return {}
 
     channel_url = f"{DISCORD_API_BASE}/channels/{channel_id}"
+
+    if channel_url in channel_info_cache:
+        return channel_info_cache[channel_url]
+
     response = requests.get(channel_url, headers={
-        "Authorization": f"Bot {bot_token}"  # Replace with your bot token
+        "Authorization": f"Bot {bot_token}"
     })
 
     if response:
         try:
             channel_info = json.loads(response.text)
         except json.JSONDecodeError:
-            print("Failed to decode the webhook info JSON!")
+            print("Failed to decode the channel info JSON!")
             return {}
         else:
             channel_info_cache[channel_url] = channel_info
@@ -113,10 +119,13 @@ def get_post_soup(patch_url: str) -> BeautifulSoup:
     :return: BeautifulSoup object.
     """
 
-    return BeautifulSoup(_make_request(patch_url).text, features=PARSER)
+    response = _make_request(patch_url)
+    if response is None:
+        return None
+    return BeautifulSoup(response.text, features=PARSER)
 
 
-cached_newest_version = None
+cached_newest_version = {}
 def get_newest_version(url: str) -> int:
     """
     Return the highest version number from the game updates page.
@@ -125,9 +134,9 @@ def get_newest_version(url: str) -> int:
 
     global cached_newest_version
 
-    if cached_newest_version is not None:
+    if url in cached_newest_version:
         print("Using cached newest version instead...")
-        return cached_newest_version
+        return cached_newest_version[url]
 
     newest_version = None
     soup = get_source_url_page(url)  # Newest version should be always on the first page.
@@ -138,8 +147,8 @@ def get_newest_version(url: str) -> int:
             newest_version = version
 
     if newest_version:
-        cached_newest_version = newest_version
-        return cached_newest_version
+        cached_newest_version[url] = newest_version
+        return cached_newest_version[url]
     else:
         print("Failed to catch the newest version! Will try the next time...")
         return None
@@ -193,7 +202,7 @@ def get_new_posts(url: str, min_version: int, max_version: int=None) -> list[Pos
                 tag = data.find('span', {'class': 'ipsBadge ipsBadge_negative'})
                 post = Post(
                     PostTag.UPDATE,
-                    PostTag.HOTFIX if "hotfix" in data.find('span').get('title').lower() else None,
+                    PostTag.HOTFIX if (s := data.find('span')) and s.get('title') and "hotfix" in s.get('title').lower() else None,
                     PostTag.BETA if tag and tag.text and "test" in tag.text.lower() or False else None,
 
                     url=post_url,

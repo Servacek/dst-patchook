@@ -1,8 +1,6 @@
 import requests
-import copy
 
 from post import Post, PostTag
-from post import Post
 from config import config
 import web_scraper
 
@@ -51,7 +49,7 @@ class Patchook:
             self.application_owned = self.info.get("application_id", None) is not None
 
         last_announce_version = self.config.get("last_announced_version", {})
-        for key in last_announce_version:
+        for key in list(last_announce_version):
             if not isinstance(last_announce_version[key], int):
                 # Convert to integer if possible
                 if isinstance(last_announce_version[key], str) and last_announce_version[key].isdigit():
@@ -67,7 +65,7 @@ class Patchook:
             if last_online_version:
                 # We have successfully fetched the newest version so we start from here.
                 # No updates this run, therefore keep the last_announced_version dictionary empty.
-                self.config["last_announced_version"] = self.last_announced_version
+                self.config["last_announced_version"] = last_announce_version
             else:
                 print("Failed to fetch the newest version for Patchook", self.url, "\nPlease update \"last_announced_version\" field in the config JSON file manually.")
 

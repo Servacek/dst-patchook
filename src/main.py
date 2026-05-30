@@ -14,7 +14,7 @@ import web_scraper
 
 from config import config, save_config
 
-__version__ = "3.0b"
+__version__ = "3.1"
 __author__  = "Fi7iP"
 
 
@@ -77,18 +77,20 @@ def announce_new_versions(patchooks: list[Patchook]):
 
             # Continue even when some updates fail to be announced.
             # try:
-            response = patchook.post(post)
-            if response is None or not response.ok:
-                if response and response.status_code == 429:
-                    retry_after = int(response.headers.get("Retry-After", RETRY_AFTER_DEFAULT)) + RETRY_AFTER_RESERVE
-                    print(f"[Error] Discord API rate limit reached! Retrying in {retry_after} seconds...")
-                    sleep(retry_after)
-                    continue
-                elif response and response.status_code == 502:
-                    sleep(GATEWAY_UNVAILABLE_SLEEP)
-                    continue
+            while True:
+                response = patchook.post(post)
+                if response is None or not response.ok:
+                    if response and response.status_code == 429:
+                        retry_after = int(response.headers.get("Retry-After", RETRY_AFTER_DEFAULT)) + RETRY_AFTER_RESERVE
+                        print(f"[Error] Discord API rate limit reached! Retrying in {retry_after} seconds...")
+                        sleep(retry_after)
+                    elif response and response.status_code == 502:
+                        print(f"[Error] Discord gateway unavailable! Retrying in {GATEWAY_UNVAILABLE_SLEEP} seconds...")
+                        sleep(GATEWAY_UNVAILABLE_SLEEP)
+                    else:
+                        raise Exception("[Error] Posting request returned an no-retry error status code! " + str(post))
                 else:
-                    raise Exception("[Error] Posting request returned an no-retry error status code! " + str(post))
+                    break
             # except Exception as err:
             #     print("[Error] Failed to post the update on discord!", err)
 

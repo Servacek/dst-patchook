@@ -80,8 +80,8 @@ def get_embed_total_length(embed):
     total_embed_length += len(embed.get("title", ""))
     total_embed_length += len(embed.get("author", {}).get("name", ""))
     total_embed_length += len(embed.get("footer", {}).get("text", ""))
-    for field_name, field_value in embed.get("fields", []):
-        total_embed_length += len(field_name) + len(field_value)
+    for field in embed.get("fields", []):
+        total_embed_length += len(field.get("name", "")) + len(field.get("value", ""))
 
     return total_embed_length
 
@@ -205,7 +205,7 @@ class Post:
 
         try:
             self.publish_timestamp = int(parser.parse(self.publish_date).timestamp())
-        except ValueError or TypeError as e:
+        except (ValueError, TypeError) as e:
             print(f"[Error] Failed to parse 'datePublished' for post {self.version}")
             print(f"[Error] {e}")
             self.publish_timestamp = None
@@ -246,7 +246,9 @@ class Post:
             if twitch_drop_anim_html_url:
                 page = get(twitch_drop_anim_html_url.group())
                 if page.text is not None:
-                    self.thumbnail_url = search(TWITCH_DROP_IMAGE_URL_PATTERN, page.text).group() or self.thumbnail_url
+                    img_match = search(TWITCH_DROP_IMAGE_URL_PATTERN, page.text)
+                    if img_match:
+                        self.thumbnail_url = img_match.group()
 
         if not self.has_tag(PostTag.UPDATE):
             self.add_tag(PostTag.ANNOUNCEMENT)
@@ -260,7 +262,7 @@ class Post:
         if self.has_tag(PostTag.ANNOUNCEMENT) and KLEI_TWITCH_CHANNEL in str(article): self.add_tag(PostTag.DEV_STREAM)
         if self.has_tag(PostTag.ANNOUNCEMENT) and "roadmap" in self.title.lower(): self.add_tag(PostTag.ROADMAP)
 
-        if self.has_tag(PostTag.ANNOUNCEMENT) and "coming soon" in self.title.lower() or "coming next week" in self.title.lower():
+        if self.has_tag(PostTag.ANNOUNCEMENT) and ("coming soon" in self.title.lower() or "coming next week" in self.title.lower()):
             self.add_tag(PostTag.TEASER)
 
         if isinstance(self.video_url, str) and len(self.video_url) > 0:
